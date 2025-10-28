@@ -1374,11 +1374,19 @@
                     && /^[0-9a-f]{64}$/.test(profile.privateKey)
                     && typeof profile.publicKey === "string"
                     && profile.publicKey.length === 64;
-            }).map((profile) => ({
-                privateKey: profile.privateKey,
-                publicKey: profile.publicKey,
-                name: sanitizeProfileName(profile.name) || buildDefaultProfileName(profile.publicKey)
-            }));
+            }).map((profile) => {
+                const storedName = loadProfileName(profile.publicKey);
+                const normalizedName = sanitizeProfileName(profile.name);
+                const resolvedName = normalizedName || storedName || buildDefaultProfileName(profile.publicKey);
+                if (!storedName && resolvedName) {
+                    persistProfileName(profile.publicKey, resolvedName);
+                }
+                return {
+                    privateKey: profile.privateKey,
+                    publicKey: profile.publicKey,
+                    name: resolvedName
+                };
+            });
         } catch (err) {
             console.warn("Cascade: קריאת הפרופילים המקומית נכשלה", err);
             savedProfiles = [];
@@ -1420,6 +1428,7 @@
         savedProfiles = savedProfiles.filter((profile) => profile.publicKey !== publicKey);
         if (savedProfiles.length !== initialLength) {
             persistProfiles();
+            clearProfileName(publicKey);
         }
     }
 
@@ -1706,9 +1715,23 @@
             const sanitized = sanitizeProfileName(name);
             if (sanitized) {
                 localStorage.setItem(PROFILE_NAME_STORAGE_PREFIX + publicKey, sanitized);
+            } else {
+                clearProfileName(publicKey);
             }
         } catch (err) {
             console.warn("Cascade: שמירת שם הפרופיל נכשלה", err);
+        }
+    }
+
+    // Cascade: מסיר שם פרופיל שנשמר עבור מפתח נתון
+    function clearProfileName(publicKey) {
+        if (!window.localStorage || !publicKey) {
+            return;
+        }
+        try {
+            localStorage.removeItem(PROFILE_NAME_STORAGE_PREFIX + publicKey);
+        } catch (err) {
+            console.warn("Cascade: מחיקת שם הפרופיל נכשלה", err);
         }
     }
 
