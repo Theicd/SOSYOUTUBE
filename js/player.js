@@ -90,6 +90,8 @@
     const profileGrid = document.getElementById("profileGrid");
     const addProfileButton = document.getElementById("addProfileButton");
 
+    loadProfiles();
+
     function logRelayDebug(message, detail) {
         if (typeof detail !== "undefined") {
             console.log("Cascade Relay:", message, detail);
@@ -1514,6 +1516,10 @@
             name: activeProfileName
         };
         upsertProfile(profileRecord);
+        persistProfileMetadata(activePublicKey, {
+            name: activeProfileName,
+            picture: opts.profilePicture || ""
+        });
         renderProfileGrid();
         updateAccountStatusBanner();
         updateAccountKeyBanner();
@@ -1549,6 +1555,7 @@
             localStorage.removeItem(ACTIVE_KEY_STORAGE);
             localStorage.removeItem(ACTIVE_PUB_STORAGE);
         }
+        persistProfileMetadata(publicKey, null);
         renderCassetteCarousel();
         toggleEmptyState();
         setTrackInfoDefault();
@@ -1732,6 +1739,27 @@
             localStorage.removeItem(PROFILE_NAME_STORAGE_PREFIX + publicKey);
         } catch (err) {
             console.warn("Cascade: מחיקת שם הפרופיל נכשלה", err);
+        }
+    }
+
+    // Cascade: שומר/מנקה פרטי מטא פרופיל (שם/תמונה) לפי מפתח ציבורי
+    function persistProfileMetadata(publicKey, metadata) {
+        if (!window.localStorage || !publicKey) {
+            return;
+        }
+        const storageKey = `cascade-car-player-profile-meta::${publicKey}`;
+        try {
+            if (metadata && (metadata.name || metadata.picture)) {
+                const payload = JSON.stringify({
+                    name: sanitizeProfileName(metadata.name),
+                    picture: typeof metadata.picture === "string" ? metadata.picture : ""
+                });
+                localStorage.setItem(storageKey, payload);
+            } else {
+                localStorage.removeItem(storageKey);
+            }
+        } catch (err) {
+            console.warn("Cascade: שמירת מטא-דאטה של פרופיל נכשלה", err);
         }
     }
 
