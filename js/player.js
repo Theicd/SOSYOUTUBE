@@ -17,6 +17,7 @@
     const PLAYLIST_EVENT_KIND = 39001;
     const PLAYLIST_EVENT_D_TAG = "cascade-car-player";
     const PLAYLIST_APP_TAG = "cascade-player";
+    const PROFILE_METADATA_KIND = 0;
     const RELAY_SYNC_DEBOUNCE_MS = 2500; // Cascade: דיליי מינימלי לפני פרסום מחדש לריליי
     const REMOTE_PULL_INTERVAL_MS = 45000; // Cascade: פרק זמן בין פולינג לריליי
 
@@ -52,11 +53,14 @@
     let activeRelaySubscription = null; // Cascade: מחזיק את הידית למנוי הריליי הפעיל עבור ניתוק מסודר
     let isRestoringFromRemote = false;
     let lastRemoteEventTimestamp = 0;
+    let lastRemoteProfileMetadataTimestamp = 0;
     let lastPublishedPayload = "";
+    let lastPublishedProfileMetadata = "";
     let localLastUpdated = 0;
     let nostrSupportWarningShown = false;
     let savedProfiles = []; // Cascade: אוסף הפרופילים השמורים (private/public key + שם)
     let activeProfileName = ""; // Cascade: שם הפרופיל שמחובר כרגע
+    let profileMetadataSubscription = null; // Cascade: מנוי לריליי עבור kind 0 של הפרופיל
 
     const trackTitleElement = document.getElementById("trackTitle");
     const trackMetaElement = document.getElementById("trackMeta");
@@ -101,6 +105,184 @@
         }
     }
 
+    // Cascade: בונה אובייקט מטא-דאטה לפרסום לריליי (kind 0)
+    function buildProfileMetadataContent() {
+        if (!activePublicKey) {
+            return "";
+        }
+        const sanitizedName = sanitizeProfileName(activeProfileName);
+        const storedProfile = findProfileByPublicKey(activePublicKey);
+        const picture = storedProfile?.picture || "";
+        if (!sanitizedName && !picture) {
+            return "";
+        }
+        const payload = {
+            name: sanitizedName || undefined,
+            picture: picture || undefined
+        };
+        try {
+            return JSON.stringify(payload);
+        } catch (err) {
+            console.warn("Cascade: יצירת JSON למטא-דאטה נכשלה", err);
+            return "";
+        }
+    }
+
+    // Cascade: מפרסם את מטא-דאטת הפרופיל (kind 0) לריליי כדי שתיטען במכשירים אחרים
+    function publishProfileMetadata() {
+        const pool = ensureNostrPool();
+        if (!pool || !activePrivateKey || !activePublicKey) {
+            return;
+        }
+        if (typeof window.NostrTools?.finalizeEvent !== "function") {
+            console.warn("Cascade: finalizeEvent חסר – לא ניתן לפרסם מטא-דאטה");
+            return;
+        }
+        const content = buildProfileMetadataContent();
+        if (!content) {
+            return;
+        }
+        if (content === lastPublishedProfileMetadata) {
+            return;
+        }
+        const createdAt = Math.floor(Date.now() / 1000);
+        const draft = {
+            kind: PROFILE_METADATA_KIND,
+            pubkey: activePublicKey,
+            created_at: createdAt,
+            tags: [
+                ["t", PLAYLIST_APP_TAG]
+            ],
+            content
+        };
+        let signed;
+        try {
+            signed = window.NostrTools.finalizeEvent(draft, activePrivateKey);
+        } catch (err) {
+            console.error("Cascade: חתימת מטא-דאטה נכשלה", err);
+            return;
+        }
+        logRelayDebug("מתפרסם אירוע מטא-דאטה (kind 0)", draft);
+        const publishOperations = pool.publish(RELAY_URLS, signed);
+        Promise.allSettled(publishOperations).then((results) => {
+            const succeeded = results.filter((result) => result.status === "fulfilled");
+            const failed = results.filter((result) => result.status === "rejected");
+            failed.forEach((result) => {
+                console.warn("Cascade: ריליי דחה מטא-דאטה", result.reason);
+            });
+            if (succeeded.length) {
+                lastPublishedProfileMetadata = content;
+            }
+        });
+    }
+
+    // Cascade: מבקש את אירוע המטא-דאטה האחרון מהריליים כדי להשלים שם/תמונה
+    function requestOwnProfileMetadata() {
+        const pool = ensureNostrPool();
+        if (!pool || !activePublicKey) {
+            return;
+        }
+        const filter = {
+            kinds: [PROFILE_METADATA_KIND],
+            authors: [activePublicKey],
+            limit: 1
+        };
+        try {
+            logRelayDebug("שליחת בקשת LIST למטא-דאטה (kind 0)", filter);
+            pool.querySync(RELAY_URLS, filter).then((events) => {
+                if (!Array.isArray(events) || !events.length) {
+                    return;
+                }
+                const newest = events.sort((a, b) => (b.created_at || 0) - (a.created_at || 0))[0];
+                logRelayDebug("אירוע מטא-דאטה התקבל מהריליי", newest);
+                applyRemoteProfileMetadata(newest);
+            }).catch((error) => {
+                console.warn("Cascade: קריאת מטא-דאטה נכשלה", error);
+            });
+        } catch (err) {
+            console.warn("Cascade: בקשת מטא-דאטה נכשלה", err);
+        }
+    }
+
+    // Cascade: מנוי לעדכוני kind 0 עבור המשתמש הפעיל
+    function subscribeToOwnProfileMetadata() {
+        const pool = ensureNostrPool();
+        if (!pool || !activePublicKey) {
+            return;
+        }
+        stopProfileMetadataSubscription();
+        const filter = {
+            kinds: [PROFILE_METADATA_KIND],
+            authors: [activePublicKey]
+        };
+        try {
+            profileMetadataSubscription = pool.subscribe(RELAY_URLS, filter, {
+                onevent: (event) => {
+                    logRelayDebug("אירוע מטא-דאטה מעודכן", event);
+                    applyRemoteProfileMetadata(event);
+                }
+            });
+        } catch (err) {
+            console.warn("Cascade: פתיחת מנוי למטא-דאטה נכשלה", err);
+        }
+    }
+
+    // Cascade: מפסיק את מנוי המטא-דאטה הנוכחי
+    function stopProfileMetadataSubscription() {
+        if (profileMetadataSubscription && typeof profileMetadataSubscription.close === "function") {
+            try {
+                profileMetadataSubscription.close();
+            } catch (err) {
+                console.warn("Cascade: סגירת מנוי מטא-דאטה נכשלה", err);
+            }
+        }
+        profileMetadataSubscription = null;
+    }
+
+    // Cascade: מחיל מטא-דאטה שהגיע מהריליי ומעדכן אחסון וממשק
+    function applyRemoteProfileMetadata(event) {
+        if (!event || event.kind !== PROFILE_METADATA_KIND || typeof event.pubkey !== "string") {
+            return;
+        }
+        const targetPubkey = event.pubkey.toLowerCase();
+        const createdAtMs = Number(event.created_at || 0) * 1000;
+        if (targetPubkey !== activePublicKey) {
+            return;
+        }
+        if (createdAtMs && createdAtMs <= lastRemoteProfileMetadataTimestamp) {
+            return;
+        }
+        let parsed;
+        try {
+            parsed = JSON.parse(event.content || "{}");
+        } catch (err) {
+            console.warn("Cascade: מטא-דאטה שהתקבל אינו JSON תקין", err);
+            return;
+        }
+        const sanitizedName = sanitizeProfileName(parsed?.name) || "";
+        const sanitizedPicture = typeof parsed?.picture === "string" ? parsed.picture : "";
+        persistProfileMetadata(targetPubkey, {
+            name: sanitizedName,
+            picture: sanitizedPicture
+        });
+        if (sanitizedName) {
+            persistProfileName(targetPubkey, sanitizedName);
+        }
+        lastRemoteProfileMetadataTimestamp = createdAtMs;
+        lastPublishedProfileMetadata = event.content || "";
+        const profileRecord = {
+            privateKey: activePrivateKey,
+            publicKey: targetPubkey,
+            name: sanitizedName || activeProfileName || buildDefaultProfileName(targetPubkey),
+            picture: sanitizedPicture || findProfileByPublicKey(targetPubkey)?.picture || ""
+        };
+        upsertProfile(profileRecord);
+        setActiveProfileName(profileRecord.name);
+        renderProfileGrid();
+        updateAccountStatusBanner();
+        updateAccountKeyBanner();
+    }
+
     // Cascade: מסנכרן פרופיל גלובלי בפורמט "nostr_profile" כדי לשמור תאימות עם SOS2
     function persistGlobalProfile(publicKey, metadata) {
         if (!window.localStorage) {
@@ -119,6 +301,24 @@
             }
         } catch (err) {
             console.warn("Cascade: שמירת nostr_profile נכשלה", err);
+        }
+    }
+
+    // Cascade: מסנכרן את nostr_profile בפורמט SOS
+    function syncNostrProfile() {
+        if (!window.localStorage || !activePublicKey || !activeProfileName) {
+            return;
+        }
+        try {
+            const storedProfile = findProfileByPublicKey(activePublicKey);
+            const profileData = {
+                name: activeProfileName,
+                picture: storedProfile?.picture || "",
+                pubkey: activePublicKey
+            };
+            localStorage.setItem("nostr_profile", JSON.stringify(profileData));
+        } catch (err) {
+            console.warn("Cascade: סנכרון nostr_profile נכשל", err);
         }
     }
 
@@ -981,7 +1181,13 @@
             if (!window.localStorage) {
                 return "";
             }
-            const stored = localStorage.getItem(ACTIVE_KEY_STORAGE);
+            let stored = localStorage.getItem(ACTIVE_KEY_STORAGE);
+            if (!stored) {
+                stored = localStorage.getItem("nostr_private_key");
+                if (stored && stored.trim()) {
+                    localStorage.setItem(ACTIVE_KEY_STORAGE, stored.trim());
+                }
+            }
             return typeof stored === "string" ? stored.trim() : "";
         } catch (err) {
             console.warn("Cascade: לא ניתן היה לקרוא את המפתח מהאחסון", err);
@@ -1416,6 +1622,7 @@
                 savedProfiles = [];
                 return;
             }
+            const globalProfile = loadGlobalProfile();
             savedProfiles = parsed.filter((profile) => {
                 return profile
                     && typeof profile.privateKey === "string"
@@ -1426,16 +1633,23 @@
                 const storedName = loadProfileName(profile.publicKey);
                 const meta = loadProfileMetadata(profile.publicKey);
                 const normalizedName = sanitizeProfileName(profile.name);
-                const global = loadGlobalProfile();
-                const resolvedName = normalizedName || storedName || meta.name || (global?.name && profile.publicKey === (global?.pubkey || "")) ? global.name : buildDefaultProfileName(profile.publicKey);
+                const matchesGlobal = Boolean(globalProfile && globalProfile.pubkey === profile.publicKey);
+                let resolvedName = normalizedName || storedName || meta.name;
+                if (!resolvedName && matchesGlobal && globalProfile?.name) {
+                    resolvedName = globalProfile.name;
+                }
+                if (!resolvedName) {
+                    resolvedName = buildDefaultProfileName(profile.publicKey);
+                }
                 if (!storedName && resolvedName) {
                     persistProfileName(profile.publicKey, resolvedName);
                 }
+                const resolvedPicture = meta.picture || (matchesGlobal ? globalProfile?.picture || "" : "");
                 return {
                     privateKey: profile.privateKey,
                     publicKey: profile.publicKey,
                     name: resolvedName,
-                    picture: meta.picture || (global?.picture && profile.publicKey === (global?.pubkey || "")) ? global.picture : ""
+                    picture: resolvedPicture
                 };
             });
         } catch (err) {
@@ -1553,6 +1767,7 @@
         activePrivateKey = normalizedLower;
         if (window.localStorage) {
             localStorage.setItem(ACTIVE_KEY_STORAGE, normalizedLower);
+            localStorage.setItem("nostr_private_key", normalizedLower);
         }
         activePublicKey = derivePublicKey(normalizedLower).toLowerCase();
         if (window.localStorage && activePublicKey) {
@@ -1570,16 +1785,20 @@
             picture: opts.profilePicture || storedProfile?.picture || meta.picture || ""
         };
         upsertProfile(profileRecord);
-        const pictureOverride = opts.profilePicture || "";
+        const resolvedPicture = profileRecord.picture || "";
         persistProfileMetadata(activePublicKey, {
             name: activeProfileName,
-            picture: pictureOverride
+            picture: resolvedPicture
         });
         persistGlobalProfile(activePublicKey, {
             name: activeProfileName,
-            picture: pictureOverride
+            picture: resolvedPicture
         });
+        syncNostrProfile();
         renderProfileGrid();
+        if (!opts.silent) {
+            console.log("Cascade: פרופיל עודכן ונשמר", { name: activeProfileName, pubkey: activePublicKey });
+        }
         updateAccountStatusBanner();
         updateAccountKeyBanner();
         if (logoutButton) {
@@ -1595,17 +1814,22 @@
         initializePlaylists();
         initializeRelayConnections();
         scheduleRemoteSync({ immediate: true });
+        requestOwnProfileMetadata();
+        subscribeToOwnProfileMetadata();
+        publishProfileMetadata();
     }
 
     // Cascade: מנתק את המשתמש הפעיל ומחזיר את הממשק למסך בחירת פרופיל
     function handleLogout(options) {
         const opts = options || {};
+        const previousPublicKey = activePublicKey;
         stopRelaySync();
         activePrivateKey = "";
         activePublicKey = "";
         setActiveProfileName("");
         lastPublishedPayload = "";
         lastRemoteEventTimestamp = 0;
+        lastRemoteProfileMetadataTimestamp = 0;
         localLastUpdated = 0;
         playlists = [];
         currentPlaylistIndex = -1;
@@ -1613,9 +1837,16 @@
         if (window.localStorage) {
             localStorage.removeItem(ACTIVE_KEY_STORAGE);
             localStorage.removeItem(ACTIVE_PUB_STORAGE);
+            localStorage.removeItem("nostr_private_key");
         }
-        persistProfileMetadata(publicKey, null);
-        persistGlobalProfile("", null);
+        if (previousPublicKey) {
+            persistProfileMetadata(previousPublicKey, null);
+            const global = loadGlobalProfile();
+            if (global?.pubkey === previousPublicKey) {
+                persistGlobalProfile("", null);
+            }
+        }
+        stopProfileMetadataSubscription();
         renderCassetteCarousel();
         toggleEmptyState();
         setTrackInfoDefault();
