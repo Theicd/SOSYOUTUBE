@@ -5,6 +5,7 @@
     const PLAYLIST_STORAGE_PREFIX = "cascade-car-player-playlists::";
     const LAST_UPDATE_STORAGE_PREFIX = "cascade-car-player-updated-at::";
     const PROFILES_STORAGE = "cascade-car-player-profiles"; // Cascade: מאגר כל הפרופילים שנשמרו במכשיר
+    const PROFILE_NAME_STORAGE_PREFIX = "cascade-car-player-profile-name::";
     const RELAY_URLS = [
         "wss://relay.damus.io",
         "wss://relay.snort.social",
@@ -1407,6 +1408,7 @@
             });
         }
         persistProfiles();
+        persistProfileName(profile.publicKey, sanitizedName);
     }
 
     // Cascade: מסיר פרופיל מהאוסף ומעדכן אחסון
@@ -1449,7 +1451,7 @@
         }
         if (trimmed.startsWith("nsec")) {
             const decoded = decodeNsec(trimmed);
-            return decoded;
+            return decoded ? decoded.toLowerCase() : "";
         }
         const plain = trimmed.startsWith("0x") ? trimmed.slice(2) : trimmed;
         if (/^[0-9a-fA-F]{64}$/.test(plain)) {
@@ -1485,18 +1487,20 @@
             setImportStatus("המפתח שהוזן אינו חוקי.", "error");
             return;
         }
-        activePrivateKey = normalized;
+        const normalizedLower = normalized.toLowerCase();
+        activePrivateKey = normalizedLower;
         if (window.localStorage) {
-            localStorage.setItem(ACTIVE_KEY_STORAGE, normalized);
+            localStorage.setItem(ACTIVE_KEY_STORAGE, normalizedLower);
         }
-        activePublicKey = derivePublicKey(normalized);
+        activePublicKey = derivePublicKey(normalizedLower).toLowerCase();
         if (window.localStorage && activePublicKey) {
             localStorage.setItem(ACTIVE_PUB_STORAGE, activePublicKey);
         }
         const opts = options || {};
-        setActiveProfileName(opts.profileName || (findProfileByPublicKey(activePublicKey)?.name));
+        const suppliedName = opts.profileName || (findProfileByPublicKey(activePublicKey)?.name) || loadProfileName(activePublicKey);
+        setActiveProfileName(suppliedName);
         const profileRecord = {
-            privateKey: normalized,
+            privateKey: normalizedLower,
             publicKey: activePublicKey,
             name: activeProfileName
         };
@@ -1651,7 +1655,8 @@
     function derivePublicKey(privateKeyHex) {
         try {
             if (window.NostrTools && typeof window.NostrTools.getPublicKey === "function") {
-                return window.NostrTools.getPublicKey(privateKeyHex);
+                const pub = window.NostrTools.getPublicKey(privateKeyHex);
+                return typeof pub === "string" ? pub.toLowerCase() : "";
             }
         } catch (err) {
             console.warn("Cascade: הפקת מפתח ציבורי נכשלה", err);
@@ -1675,9 +1680,36 @@
         if (!window.localStorage || !activePrivateKey || !Number.isFinite(timestamp)) {
             return;
         }
-        const key = LAST_UPDATE_STORAGE_PREFIX + activePrivateKey;
+        const key = LAST_UPDATE_STORAGE_PREFIX + activePublicKey;
         localStorage.setItem(key, String(timestamp));
         localLastUpdated = timestamp;
+    }
+
+    // Cascade: טוען שם פרופיל אם נשמר בנפרד עבור המפתח הציבורי
+    function loadProfileName(publicKey) {
+        if (!window.localStorage || !publicKey) {
+            return "";
+        }
+        try {
+            return localStorage.getItem(PROFILE_NAME_STORAGE_PREFIX + publicKey) || "";
+        } catch (err) {
+            return "";
+        }
+    }
+
+    // Cascade: שומר שם פרופיל ותואם לפורמט אחסון המקורי
+    function persistProfileName(publicKey, name) {
+        if (!window.localStorage || !publicKey) {
+            return;
+        }
+        try {
+            const sanitized = sanitizeProfileName(name);
+            if (sanitized) {
+                localStorage.setItem(PROFILE_NAME_STORAGE_PREFIX + publicKey, sanitized);
+            }
+        } catch (err) {
+            console.warn("Cascade: שמירת שם הפרופיל נכשלה", err);
+        }
     }
 
     // Cascade: יוצר Pool של Nostr אם קיים
