@@ -94,8 +94,147 @@
     const profileOverlay = document.getElementById("profileOverlay");
     const profileGrid = document.getElementById("profileGrid");
     const addProfileButton = document.getElementById("addProfileButton");
+    const topbar = document.getElementById("topbar");
+    const topbarKeyButton = document.getElementById("topbarKey");
+    const topbarKeyMenu = document.getElementById("topbarKeyMenu");
+    const topbarCopyKeyButton = document.getElementById("topbarCopyKey");
+    const topbarLogoutButton = document.getElementById("topbarLogout");
+    const topbarKeyValueElement = document.getElementById("topbarKeyValue");
+    const topbarLogo = document.querySelector(".topbar-logo");
 
     loadProfiles();
+
+    // Cascade: בודק אם תפריט המפתח העליון גלוי עבור SOSMTV
+    function isTopbarMenuOpen() {
+        return Boolean(topbarKeyMenu && topbarKeyMenu.getAttribute("aria-hidden") === "false");
+    }
+
+    // Cascade: מחליף מצב תפריט המפתח העליון עבור SOSMTV
+    function toggleTopbarMenu(forceState) {
+        if (!topbarKeyButton || !topbarKeyMenu) {
+            return;
+        }
+        const nextState = typeof forceState === "boolean" ? forceState : !isTopbarMenuOpen();
+        topbarKeyButton.setAttribute("aria-expanded", String(nextState));
+        topbarKeyMenu.setAttribute("aria-hidden", nextState ? "false" : "true");
+        if (nextState) {
+            updateTopbarKeyDisplay();
+            if (topbarKeyValueElement) {
+                topbarKeyValueElement.focus({ preventScroll: true });
+            }
+        }
+    }
+
+    // Cascade: סוגר את תפריט המפתח העליון כדי למנוע הישארות פתוחה
+    function closeTopbarMenu() {
+        toggleTopbarMenu(false);
+    }
+
+    // Cascade: מאזין לקליקים מחוץ לתפריט העליון כדי לסגור אותו
+    function handleDocumentClickForTopbar(event) {
+        if (!topbarKeyButton || !topbarKeyMenu) {
+            return;
+        }
+        if (topbarKeyMenu.getAttribute("aria-hidden") === "true") {
+            return;
+        }
+        if (!topbarKeyMenu.contains(event.target) && event.target !== topbarKeyButton) {
+            closeTopbarMenu();
+        }
+    }
+
+    // Cascade: מעתיק את המפתח הציבורי ומציג משוב במקורות השונים
+    function copyActivePublicKeyAndNotify() {
+        if (!activePublicKey) {
+            return;
+        }
+        const keyToCopy = activePublicKey;
+        const markCopied = () => {
+            if (copyActiveKeyButton) {
+                copyActiveKeyButton.textContent = "✅ הועתק";
+            }
+            if (topbarCopyKeyButton) {
+                topbarCopyKeyButton.textContent = "✅ הועתק";
+            }
+            updateTopbarKeyDisplay();
+            setTimeout(() => {
+                if (copyActiveKeyButton) {
+                    copyActiveKeyButton.textContent = "העתק";
+                }
+                if (topbarCopyKeyButton) {
+                    topbarCopyKeyButton.textContent = "העתק מפתח ציבורי";
+                }
+            }, 2000);
+        };
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+            navigator.clipboard.writeText(keyToCopy).then(markCopied).catch(() => {
+                fallbackCopyActiveKey(keyToCopy);
+                markCopied();
+            });
+        } else {
+            fallbackCopyActiveKey(keyToCopy);
+            markCopied();
+        }
+    }
+
+    // Cascade: מציג את ערך המפתח הנוכחי בתפריט הפס העליון
+    function updateTopbarKeyDisplay() {
+        if (!topbarKeyValueElement) {
+            return;
+        }
+        if (activePublicKey) {
+            topbarKeyValueElement.textContent = activePublicKey;
+            topbarKeyValueElement.setAttribute("title", activePublicKey);
+        } else {
+            topbarKeyValueElement.textContent = "אין מפתח פעיל";
+            topbarKeyValueElement.removeAttribute("title");
+        }
+    }
+
+    // Cascade: מעדכן את מצב אייקוני הפס העליון בהתאם למצב ההתחברות
+    function syncTopbarState() {
+        const hasActiveProfile = Boolean(activePrivateKey && activePublicKey);
+        if (signupButton) {
+            signupButton.hidden = false;
+            signupButton.setAttribute("aria-hidden", "false");
+        }
+        if (loginButton) {
+            loginButton.hidden = false;
+            const loginLabel = hasActiveProfile ? "🔐 המפתח שלי" : "🔐 התחבר";
+            loginButton.textContent = loginLabel;
+            loginButton.setAttribute("aria-label", hasActiveProfile ? "המפתח שלי" : "התחבר");
+            loginButton.setAttribute("title", hasActiveProfile ? "המפתח שלי" : "התחבר");
+        }
+        if (logoutButton) {
+            logoutButton.hidden = false;
+        }
+        if (topbarKeyButton) {
+            topbarKeyButton.disabled = !hasActiveProfile;
+            topbarKeyButton.classList.toggle("is-disabled", !hasActiveProfile);
+            if (!hasActiveProfile) {
+                topbarKeyButton.setAttribute("aria-expanded", "false");
+            }
+        }
+        if (topbarKeyMenu) {
+            if (!hasActiveProfile) {
+                topbarKeyMenu.setAttribute("aria-hidden", "true");
+            }
+        }
+        if (topbarLogoutButton) {
+            topbarLogoutButton.disabled = !hasActiveProfile;
+            topbarLogoutButton.hidden = false;
+        }
+        if (!hasActiveProfile) {
+            closeTopbarMenu();
+        }
+        updateTopbarKeyDisplay();
+        if (topbarCopyKeyButton) {
+            topbarCopyKeyButton.textContent = "העתק מפתח ציבורי";
+        }
+        if (copyActiveKeyButton) {
+            copyActiveKeyButton.textContent = "העתק";
+        }
+    }
 
     function logRelayDebug(message, detail) {
         if (typeof detail !== "undefined") {
@@ -287,6 +426,7 @@
         renderProfileGrid();
         updateAccountStatusBanner();
         updateAccountKeyBanner();
+        syncTopbarState();
     }
 
     // Cascade: מסנכרן פרופיל גלובלי בפורמט "nostr_profile" כדי לשמור תאימות עם SOS2
@@ -1156,6 +1296,7 @@
         setTrackInfoDefault();
         updateAccountStatusBanner();
         updateAccountKeyBanner();
+        syncTopbarState();
         if (savedProfiles.length) {
             openProfileOverlay();
         } else if (signupButton) {
@@ -1179,8 +1320,16 @@
 
     // Cascade: מאזין לכפתורי הממשק של חשבון המשתמש
     function bindAccountEvents() {
+        if (signupButton) {
+            signupButton.classList.add("topbar-button-primary");
+            signupButton.onclick = () => {
+                closeTopbarMenu();
+                openAccountModal({ focus: "signup" });
+            };
+        }
         if (loginButton) {
             loginButton.onclick = () => {
+                closeTopbarMenu();
                 if (activePrivateKey || savedProfiles.length) {
                     openProfileOverlay();
                 } else {
@@ -1188,33 +1337,11 @@
                 }
             };
         }
-        if (signupButton) {
-            signupButton.onclick = () => {
-                openAccountModal({ focus: "signup" });
-            };
-        }
         if (logoutButton) {
             logoutButton.onclick = () => handleLogout();
         }
         if (copyActiveKeyButton) {
-            copyActiveKeyButton.onclick = () => {
-                if (!activePublicKey) {
-                    return;
-                }
-                const keyToCopy = activePublicKey;
-                if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-                    navigator.clipboard.writeText(keyToCopy).then(() => {
-                        copyActiveKeyButton.textContent = "✅ הועתק";
-                        setTimeout(() => {
-                            copyActiveKeyButton.textContent = "העתק";
-                        }, 2000);
-                    }).catch(() => {
-                        fallbackCopyActiveKey(keyToCopy);
-                    });
-                } else {
-                    fallbackCopyActiveKey(keyToCopy);
-                }
-            };
+            copyActiveKeyButton.onclick = () => copyActivePublicKeyAndNotify();
         }
         if (closeAccountModalBtn) {
             closeAccountModalBtn.onclick = () => closeAccountModal();
@@ -1279,6 +1406,22 @@
                 }
                 if (event.key === "Tab" && accountModal && accountModal.classList.contains("is-open")) {
                     trapFocus(event);
+                }
+                if (event.key === "Escape") {
+                    closeTopbarMenu();
+                }
+            });
+        }
+        if (document.addEventListener) {
+            document.addEventListener("click", handleDocumentClickForTopbar);
+            document.addEventListener("fullscreenchange", () => {
+                if (!topbar) {
+                    return;
+                }
+                const isFullscreen = Boolean(document.fullscreenElement);
+                topbar.classList.toggle("hidden", isFullscreen);
+                if (!isFullscreen) {
+                    closeTopbarMenu();
                 }
             });
         }
@@ -1781,6 +1924,7 @@
         renderProfileGrid();
         updateAccountStatusBanner();
         updateAccountKeyBanner();
+        syncTopbarState();
         if (logoutButton) {
             logoutButton.hidden = false;
         }
@@ -1832,6 +1976,7 @@
         updatePlaylistName();
         updateAccountStatusBanner();
         updateAccountKeyBanner();
+        syncTopbarState();
         if (loginButton) {
             loginButton.textContent = "🔐 התחבר";
         }

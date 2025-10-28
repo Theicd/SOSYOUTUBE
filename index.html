@@ -9,26 +9,32 @@
 </head>
 <body class="cassette-app">
     <!-- Cascade: מעטפת יישום הקלטות הדיגיטליות -->
+    <header class="topbar" id="topbar">
+        <div class="topbar-inner">
+            <div class="topbar-logo" role="button" tabindex="0" aria-label="SOSMTV">
+                <span class="topbar-logo-icon" aria-hidden="true">🎵</span>
+                <span class="topbar-logo-text">SOSMTV</span>
+            </div>
+            <nav class="topbar-actions" aria-label="תפריט חשבון">
+                <button id="signupButton" class="topbar-button topbar-button-primary" type="button">✨ צור משתמש</button>
+                <button id="loginButton" class="topbar-button" type="button">🔐 התחבר</button>
+                <button id="logoutButton" class="topbar-button" type="button" hidden>🚪 התנתק</button>
+                <button id="topbarKey" class="topbar-icon-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="topbarKeyMenu" aria-label="אפשרויות מפתח">
+                    <span aria-hidden="true">🔑</span>
+                </button>
+            </nav>
+        </div>
+        <div id="topbarKeyMenu" class="topbar-key-menu" role="menu" aria-hidden="true">
+            <div class="topbar-key-info" role="none">
+                <span class="topbar-key-label">המפתח שלך</span>
+                <code id="topbarKeyValue" class="topbar-key-value" tabindex="-1"></code>
+            </div>
+            <button id="topbarCopyKey" class="topbar-menu-btn" type="button" role="menuitem">העתק מפתח ציבורי</button>
+            <button id="topbarLogout" class="topbar-menu-btn" type="button" role="menuitem">התנתק</button>
+        </div>
+    </header>
+
     <main class="cassette-shell">
-        <header class="app-header">
-            <div class="app-hero">
-                <div>
-                    <h1>🎶 קלטות דיגיטליות לרכב</h1>
-                    <p>הכין אוספים משלך, בחר קלטות בלחיצה ונגן מוזיקה בדרך בטוחה ונוחה.</p>
-                </div>
-                <div class="account-toolbar">
-                    <button id="signupButton" class="primary-btn account-signup" type="button">✨ צור משתמש</button>
-                    <button id="loginButton" class="account-btn" type="button">🔐 התחבר</button>
-                    <button id="logoutButton" class="ghost-btn account-logout" type="button" hidden>🚪 התנתק</button>
-                </div>
-            </div>
-            <div id="accountStatus" class="account-status" aria-live="polite"></div>
-            <div id="accountKeyBanner" class="account-key-banner" hidden>
-                <span class="account-key-label">🔑 המפתח הציבורי שלך:</span>
-                <code id="accountPublicKey" class="account-key-value" tabindex="0"></code>
-                <button id="copyActiveKeyButton" class="ghost-btn" type="button" aria-label="העתק מפתח ציבורי">העתק</button>
-            </div>
-        </header>
         <section class="player-panel">
             <div class="player-screen" aria-label="נגן וידאו">
                 <div id="player" class="player-frame"></div>
