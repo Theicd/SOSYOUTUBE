@@ -304,24 +304,6 @@
         }
     }
 
-    // Cascade: מסנכרן את nostr_profile בפורמט SOS
-    function syncNostrProfile() {
-        if (!window.localStorage || !activePublicKey || !activeProfileName) {
-            return;
-        }
-        try {
-            const storedProfile = findProfileByPublicKey(activePublicKey);
-            const profileData = {
-                name: activeProfileName,
-                picture: storedProfile?.picture || "",
-                pubkey: activePublicKey
-            };
-            localStorage.setItem("nostr_profile", JSON.stringify(profileData));
-        } catch (err) {
-            console.warn("Cascade: סנכרון nostr_profile נכשל", err);
-        }
-    }
-
     // Cascade: קורא את הפרופיל הגלובלי אם קיים כדי להשלים נתונים חסרים
     function loadGlobalProfile() {
         if (!window.localStorage) {
@@ -1181,13 +1163,7 @@
             if (!window.localStorage) {
                 return "";
             }
-            let stored = localStorage.getItem(ACTIVE_KEY_STORAGE);
-            if (!stored) {
-                stored = localStorage.getItem("nostr_private_key");
-                if (stored && stored.trim()) {
-                    localStorage.setItem(ACTIVE_KEY_STORAGE, stored.trim());
-                }
-            }
+            const stored = localStorage.getItem(ACTIVE_KEY_STORAGE);
             return typeof stored === "string" ? stored.trim() : "";
         } catch (err) {
             console.warn("Cascade: לא ניתן היה לקרוא את המפתח מהאחסון", err);
@@ -1767,7 +1743,6 @@
         activePrivateKey = normalizedLower;
         if (window.localStorage) {
             localStorage.setItem(ACTIVE_KEY_STORAGE, normalizedLower);
-            localStorage.setItem("nostr_private_key", normalizedLower);
         }
         activePublicKey = derivePublicKey(normalizedLower).toLowerCase();
         if (window.localStorage && activePublicKey) {
@@ -1794,11 +1769,7 @@
             name: activeProfileName,
             picture: resolvedPicture
         });
-        syncNostrProfile();
         renderProfileGrid();
-        if (!opts.silent) {
-            console.log("Cascade: פרופיל עודכן ונשמר", { name: activeProfileName, pubkey: activePublicKey });
-        }
         updateAccountStatusBanner();
         updateAccountKeyBanner();
         if (logoutButton) {
@@ -1837,7 +1808,6 @@
         if (window.localStorage) {
             localStorage.removeItem(ACTIVE_KEY_STORAGE);
             localStorage.removeItem(ACTIVE_PUB_STORAGE);
-            localStorage.removeItem("nostr_private_key");
         }
         if (previousPublicKey) {
             persistProfileMetadata(previousPublicKey, null);
