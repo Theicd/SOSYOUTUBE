@@ -17,11 +17,17 @@
                     <p>הכין אוספים משלך, בחר קלטות בלחיצה ונגן מוזיקה בדרך בטוחה ונוחה.</p>
                 </div>
                 <div class="account-toolbar">
+                    <button id="signupButton" class="primary-btn account-signup" type="button">✨ צור משתמש</button>
+                    <button id="loginButton" class="account-btn" type="button">🔐 התחבר</button>
                     <button id="logoutButton" class="ghost-btn account-logout" type="button" hidden>🚪 התנתק</button>
-                    <button id="accountButton" class="account-btn" type="button">🔐 התחבר / הירשם</button>
                 </div>
             </div>
             <div id="accountStatus" class="account-status" aria-live="polite"></div>
+            <div id="accountKeyBanner" class="account-key-banner" hidden>
+                <span class="account-key-label">🔑 המפתח הציבורי שלך:</span>
+                <code id="accountPublicKey" class="account-key-value" tabindex="0"></code>
+                <button id="copyActiveKeyButton" class="ghost-btn" type="button" aria-label="העתק מפתח ציבורי">העתק</button>
+            </div>
         </header>
         <section class="player-panel">
             <div class="player-screen" aria-label="נגן וידאו">
@@ -91,43 +97,38 @@
             <h2 id="accountModalTitle">כניסה או רישום באמצעות מפתח אישי</h2>
             <p class="account-lead">Cascade: שמור את המפתח במקום בטוח. המפתח מזהה אותך ושומר את ארון הקלטות שלך בין מכשירים.</p>
 
-            <div class="account-section account-profile-name">
-                <h3>👤 שם פרופיל לנגן</h3>
-                <p class="account-hint">Cascade: השם שיופיע במסך בחירת המשתמשים ובכל המכשירים שמחוברים עם אותו מפתח.</p>
-                <label for="profileNameInput" class="account-label">שם הפרופיל</label>
-                <input id="profileNameInput" class="account-input" type="text" placeholder="לדוגמה: נהג ראשי / משפחה" maxlength="40">
-                <div id="profileNameStatus" class="account-status-inline" aria-live="polite"></div>
-            </div>
-
-            <div class="account-section">
-                <h3>📥 כניסה עם מפתח קיים</h3>
-                <label for="importKeyInput" class="account-label">הדבק כאן מפתח nsec או קוד Hex</label>
-                <textarea id="importKeyInput" class="account-textarea" rows="3" placeholder="הדבק כאן את המפתח שקיבלת"></textarea>
-                <div class="account-actions">
-                    <button id="importKeyButton" class="primary-btn" type="button">טען מפתח</button>
-                </div>
-                <div id="importKeyStatus" class="account-status-inline" aria-live="polite"></div>
-            </div>
-
-            <div class="account-divider"><span>או</span></div>
-
-            <div class="account-section">
-                <h3>🆕 רישום וקבלת מפתח חדש</h3>
-                <p class="account-hint">בלחיצה על “צור מפתח” ניצור מפתח חדש, נציג אותו במסך ותוכלו להעתיק או לשתף ב־WhatsApp. בלי המפתח הזה לא ניתן לשחזר את הקלטות.</p>
-                <div class="account-actions">
-                    <button id="generateKeyButton" class="primary-btn" type="button">צור מפתח חדש</button>
-                </div>
-                <div id="generatedKeyBlock" class="generated-key" hidden>
-                    <label for="generatedKeyOutput" class="account-label">המפתח האישי שלך</label>
-                    <textarea id="generatedKeyOutput" class="account-textarea" rows="3" readonly></textarea>
-                    <p class="account-hint">שמור את המפתח, הוא יזוהה גם במחשבים ודפדפנים אחרים.</p>
+            <div class="account-modal-grid">
+                <section class="account-card account-card-login" aria-label="טופס כניסה">
+                    <h3>📥 כניסה למפתח קיים</h3>
+                    <p class="account-hint">הדבק את המפתח ושחזר מיד את הקלטות שלך.</p>
+                    <label for="importKeyInput" class="account-label">מפתח nsec או Hex</label>
+                    <textarea id="importKeyInput" class="account-textarea" rows="3" placeholder="לדוגמה nsec1..." maxlength="90"></textarea>
                     <div class="account-actions">
-                        <button id="copyKeyButton" class="ghost-btn" type="button">העתק</button>
-                        <button id="shareKeyButton" class="ghost-btn" type="button">שתף ב־WhatsApp</button>
-                        <button id="confirmKeyButton" class="primary-btn" type="button">המשך לנגן</button>
+                        <button id="importKeyButton" class="primary-btn" type="button">התחבר</button>
                     </div>
-                    <div id="generatedKeyStatus" class="account-status-inline" aria-live="polite"></div>
-                </div>
+                    <div id="importKeyStatus" class="account-status-inline" aria-live="polite"></div>
+                </section>
+
+                <section class="account-card account-card-signup" aria-label="טופס רישום">
+                    <h3>🆕 יצירת פרופיל חדש</h3>
+                    <p class="account-hint">בחר שם קצר, צור מפתח ושמור אותו במקום בטוח.</p>
+                    <label for="profileNameInput" class="account-label">שם שיופיע במסך הפרופילים</label>
+                    <input id="profileNameInput" class="account-input" type="text" placeholder="לדוגמה: נהג ראשי" maxlength="40">
+                    <div id="profileNameStatus" class="account-status-inline" aria-live="polite"></div>
+                    <div class="account-actions">
+                        <button id="generateKeyButton" class="primary-btn" type="button">צור מפתח חדש</button>
+                    </div>
+                    <div id="generatedKeyBlock" class="generated-key" hidden>
+                        <label for="generatedKeyOutput" class="account-label">המפתח שנוצר</label>
+                        <textarea id="generatedKeyOutput" class="account-textarea" rows="3" readonly></textarea>
+                        <div class="account-actions">
+                            <button id="copyKeyButton" class="ghost-btn" type="button">העתק</button>
+                            <button id="shareKeyButton" class="ghost-btn" type="button">WhatsApp</button>
+                            <button id="confirmKeyButton" class="primary-btn" type="button">שמור והתחבר</button>
+                        </div>
+                        <div id="generatedKeyStatus" class="account-status-inline" aria-live="polite"></div>
+                    </div>
+                </section>
             </div>
         </div>
     </section>

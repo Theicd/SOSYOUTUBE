@@ -15,6 +15,8 @@
     const PLAYLIST_EVENT_KIND = 39001;
     const PLAYLIST_EVENT_D_TAG = "cascade-car-player";
     const PLAYLIST_APP_TAG = "cascade-player";
+    const RELAY_SYNC_DEBOUNCE_MS = 2500; // Cascade: דיליי מינימלי לפני פרסום מחדש לריליי
+    const REMOTE_PULL_INTERVAL_MS = 45000; // Cascade: פרק זמן בין פולינג לריליי
 
     // Cascade: פונקציות עזר לשמות פרופילים ותיוגם במערכת
     function sanitizeProfileName(value) {
@@ -32,6 +34,9 @@
         return `פרופיל ${publicKey.slice(0, 4)}…${publicKey.slice(-4)}`;
     }
 
+    const defaultPlaylists = []; // Cascade: פלייליסטים ריקים כברירת מחדל עבור פרופילים חדשים
+
+    let playlists = []; // Cascade: אוסף הקלטות של המשתמש הפעיל
     let player = null;
     let currentPlaylistIndex = 0;
     let isShuffle = false;
@@ -58,9 +63,13 @@
     const shelfNextButton = document.getElementById("shelfNext");
     const hydratingPlaylists = new Set();
     const htmlDecoder = document.createElement("textarea");
-    const accountButton = document.getElementById("accountButton");
+    const loginButton = document.getElementById("loginButton");
+    const signupButton = document.getElementById("signupButton");
     const logoutButton = document.getElementById("logoutButton");
     const accountStatusLabel = document.getElementById("accountStatus");
+    const accountKeyBanner = document.getElementById("accountKeyBanner");
+    const accountPublicKeyElement = document.getElementById("accountPublicKey");
+    const copyActiveKeyButton = document.getElementById("copyActiveKeyButton");
     const accountModal = document.getElementById("accountModal");
     const closeAccountModalBtn = document.getElementById("closeAccountModal");
     const importKeyInput = document.getElementById("importKeyInput");
@@ -85,6 +94,25 @@
             console.log("Cascade Relay:", message, detail);
         } else {
             console.log("Cascade Relay:", message);
+        }
+    }
+
+    // Cascade: טוען פלייליסטים מהאחסון לפי המפתח הציבורי הפעיל
+    function loadPlaylistsFromStorage() {
+        if (!window.localStorage || !activePublicKey) {
+            return [];
+        }
+        const storageKey = PLAYLIST_STORAGE_PREFIX + activePublicKey;
+        try {
+            const stored = localStorage.getItem(storageKey);
+            if (!stored) {
+                return [];
+            }
+            const parsed = JSON.parse(stored);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (err) {
+            console.warn("Cascade: לא ניתן היה לקרוא פלייליסטים מהאחסון", err);
+            return [];
         }
     }
 
@@ -890,10 +918,11 @@
         toggleEmptyState();
         setTrackInfoDefault();
         updateAccountStatusBanner();
+        updateAccountKeyBanner();
         if (savedProfiles.length) {
             openProfileOverlay();
-        } else if (accountButton) {
-            accountButton.focus();
+        } else if (signupButton) {
+            signupButton.focus();
         }
     }
 
@@ -913,17 +942,42 @@
 
     // Cascade: מאזין לכפתורי הממשק של חשבון המשתמש
     function bindAccountEvents() {
-        if (accountButton) {
-            accountButton.onclick = () => {
+        if (loginButton) {
+            loginButton.onclick = () => {
                 if (activePrivateKey || savedProfiles.length) {
                     openProfileOverlay();
                 } else {
-                    openAccountModal();
+                    openAccountModal({ focus: "login" });
                 }
+            };
+        }
+        if (signupButton) {
+            signupButton.onclick = () => {
+                openAccountModal({ focus: "signup" });
             };
         }
         if (logoutButton) {
             logoutButton.onclick = () => handleLogout();
+        }
+        if (copyActiveKeyButton) {
+            copyActiveKeyButton.onclick = () => {
+                if (!activePublicKey) {
+                    return;
+                }
+                const keyToCopy = activePublicKey;
+                if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+                    navigator.clipboard.writeText(keyToCopy).then(() => {
+                        copyActiveKeyButton.textContent = "✅ הועתק";
+                        setTimeout(() => {
+                            copyActiveKeyButton.textContent = "העתק";
+                        }, 2000);
+                    }).catch(() => {
+                        fallbackCopyActiveKey(keyToCopy);
+                    });
+                } else {
+                    fallbackCopyActiveKey(keyToCopy);
+                }
+            };
         }
         if (closeAccountModalBtn) {
             closeAccountModalBtn.onclick = () => closeAccountModal();
@@ -956,7 +1010,7 @@
         if (addProfileButton) {
             addProfileButton.onclick = () => {
                 closeProfileOverlay();
-                openAccountModal();
+                openAccountModal({ focus: "signup" });
             };
         }
         if (profileOverlay) {
@@ -994,22 +1048,29 @@
     }
 
     // Cascade: פותח את החלון הקופץ של חשבון המשתמש
-    function openAccountModal() {
+    function openAccountModal(options) {
         if (!accountModal) {
             return;
         }
         accountModal.classList.add("is-open");
         accountModal.setAttribute("aria-hidden", "false");
+        const opts = options || {};
+        const shouldFocusSignup = opts.focus === "signup";
         if (profileNameInput) {
-            if (activeProfileName) {
+            if (shouldFocusSignup) {
+                profileNameInput.value = "";
+                setProfileNameStatus("בחר שם קצר למשתמש החדש שלך.");
+            } else if (activeProfileName) {
                 profileNameInput.value = activeProfileName;
                 setProfileNameStatus("ניתן לעדכן את שם הפרופיל הנוכחי.");
             } else {
                 profileNameInput.value = "";
-                setProfileNameStatus("הזן שם פרופיל לבחירה במסך המשתמשים.");
+                setProfileNameStatus("");
             }
         }
-        if (importKeyInput) {
+        if (shouldFocusSignup && profileNameInput) {
+            setTimeout(() => profileNameInput.focus(), 0);
+        } else if (importKeyInput) {
             setTimeout(() => importKeyInput.focus(), 0);
         }
     }
@@ -1024,6 +1085,12 @@
         setImportStatus("", "");
         setGeneratedKeyStatus("", "");
         setProfileNameStatus("", "");
+        if (document.activeElement && typeof document.activeElement.blur === "function") {
+            document.activeElement.blur();
+        }
+        if (loginButton) {
+            loginButton.focus();
+        }
     }
 
     // Cascade: מציג את שכבת בחירת הפרופילים
@@ -1133,8 +1200,8 @@
         updateAccountStatusBanner();
         if (!savedProfiles.length) {
             closeProfileOverlay();
-            if (accountButton) {
-                accountButton.focus();
+            if (signupButton) {
+                signupButton.focus();
             }
         } else if (wasActive) {
             openProfileOverlay();
@@ -1156,10 +1223,7 @@
             setImportStatus("המפתח שסופק אינו חוקי. ודא שמדובר במחרוזת Hex באורך 64 תווים או מפתח nsec.", "error");
             return;
         }
-        const profileName = extractProfileNameFromModal();
-        if (!profileName) {
-            return;
-        }
+        const profileName = extractProfileNameFromModal({ required: false });
         applyActivePrivateKey(normalized, { silent: false, profileName });
         importKeyInput.value = "";
         closeAccountModal();
@@ -1218,11 +1282,7 @@
             setGeneratedKeyStatus("יש ליצור מפתח לפני שמירה.", "error");
             return;
         }
-        const profileName = extractProfileNameFromModal();
-        if (!profileName) {
-            setGeneratedKeyStatus("נא לבחור שם פרופיל לפני שמירה.", "error");
-            return;
-        }
+        const profileName = extractProfileNameFromModal({ required: false });
         applyActivePrivateKey(pendingGeneratedKey, { silent: false, profileName });
         pendingGeneratedKey = "";
         if (generatedKeyBlock) {
@@ -1259,16 +1319,21 @@
     }
 
     // Cascade: מחלץ שם פרופיל ממסך החשבון ומוודא שהוא תקין
-    function extractProfileNameFromModal() {
+    function extractProfileNameFromModal(options) {
         if (!profileNameInput) {
             return "";
         }
+        const opts = options || {};
         const sanitized = sanitizeProfileName(profileNameInput.value);
         if (!sanitized) {
-            setProfileNameStatus("נא להזין שם פרופיל קצר כדי שנזהה את המשתמש במסך הבחירה.", "error");
+            if (opts.required) {
+                setProfileNameStatus("נא להזין שם פרופיל קצר כדי שנזהה את המשתמש במסך הבחירה.", "error");
+                return "";
+            }
+            setProfileNameStatus("אם תשאיר את השדה ריק ניצור שם אוטומטי לפי המפתח שלך.");
             return "";
         }
-        setProfileNameStatus("");
+        setProfileNameStatus("שם הפרופיל יישמר ויוצג במסך הבחירה.");
         return sanitized;
     }
 
@@ -1438,11 +1503,15 @@
         upsertProfile(profileRecord);
         renderProfileGrid();
         updateAccountStatusBanner();
+        updateAccountKeyBanner();
         if (logoutButton) {
             logoutButton.hidden = false;
         }
-        if (accountButton) {
-            accountButton.textContent = "🔄 החלף משתמש";
+        if (loginButton) {
+            loginButton.textContent = "🔄 החלף משתמש";
+        }
+        if (signupButton) {
+            signupButton.hidden = true;
         }
         logRelayDebug("מפתח פרטי נטען והופק מפתח ציבורי", activePublicKey);
         initializePlaylists();
@@ -1472,8 +1541,12 @@
         setTrackInfoDefault();
         updatePlaylistName();
         updateAccountStatusBanner();
-        if (accountButton) {
-            accountButton.textContent = "🔐 התחבר / הירשם";
+        updateAccountKeyBanner();
+        if (loginButton) {
+            loginButton.textContent = "🔐 התחבר";
+        }
+        if (signupButton) {
+            signupButton.hidden = false;
         }
         if (logoutButton) {
             logoutButton.hidden = true;
@@ -1481,6 +1554,46 @@
         if (!opts.skipOverlay && savedProfiles.length) {
             openProfileOverlay();
         }
+    }
+
+    // Cascade: מעדכן את באנר המפתח הציבורי להצגה למשתמש הפעיל
+    function updateAccountKeyBanner() {
+        if (!accountKeyBanner || !accountPublicKeyElement) {
+            return;
+        }
+        if (activePublicKey) {
+            accountPublicKeyElement.textContent = activePublicKey;
+            accountPublicKeyElement.setAttribute("title", activePublicKey);
+            accountKeyBanner.hidden = false;
+        } else {
+            accountPublicKeyElement.textContent = "";
+            accountPublicKeyElement.removeAttribute("title");
+            accountKeyBanner.hidden = true;
+        }
+    }
+
+    // Cascade: שכבת גיבוי להעתקת המפתח כאשר API מודרני לא זמין
+    function fallbackCopyActiveKey(value) {
+        if (!value) {
+            return;
+        }
+        const tempInput = document.createElement("textarea");
+        tempInput.value = value;
+        tempInput.setAttribute("readonly", "");
+        tempInput.style.position = "absolute";
+        tempInput.style.left = "-9999px";
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        try {
+            document.execCommand("copy");
+            copyActiveKeyButton.textContent = "✅ הועתק";
+        } catch (err) {
+            console.warn("Cascade: העתקת המפתח נכשלה", err);
+        }
+        document.body.removeChild(tempInput);
+        setTimeout(() => {
+            copyActiveKeyButton.textContent = "העתק";
+        }, 2000);
     }
 
     // Cascade: BECH32 דקודר מינימלי לצורך פענוח nsec
@@ -1551,7 +1664,7 @@
         if (!window.localStorage || !activePrivateKey) {
             return 0;
         }
-        const key = LAST_UPDATE_STORAGE_PREFIX + activePrivateKey;
+        const key = LAST_UPDATE_STORAGE_PREFIX + activePublicKey;
         const value = localStorage.getItem(key);
         const parsed = value ? Number(value) : 0;
         return Number.isFinite(parsed) ? parsed : 0;
