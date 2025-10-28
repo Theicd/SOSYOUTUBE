@@ -59,6 +59,14 @@
     const generatedKeyStatus = document.getElementById("generatedKeyStatus");
     const accountModalFocusTrap = [];
 
+    function logRelayDebug(message, detail) {
+        if (typeof detail !== "undefined") {
+            console.log("Cascade Relay:", message, detail);
+        } else {
+            console.log("Cascade Relay:", message);
+        }
+    }
+
     // Cascade: מפעיל את תהליך הטעינה לאחר הגעת ה-API
     function onYouTubeIframeAPIReadyInternal() {
         initializePlayer();
@@ -1120,8 +1128,15 @@
         if (window.localStorage) {
             localStorage.setItem(ACTIVE_KEY_STORAGE, normalized);
         }
+        activePublicKey = derivePublicKey(normalized);
+        if (window.localStorage && activePublicKey) {
+            localStorage.setItem(ACTIVE_PUB_STORAGE, activePublicKey);
+        }
         updateAccountStatusBanner(`משתמש מחובר עם מפתח ${normalized.slice(0, 6)}…${normalized.slice(-6)}.`);
+        logRelayDebug("מפתח פרטי נטען והופק מפתח ציבורי", activePublicKey);
         initializePlaylists();
+        initializeRelayConnections();
+        scheduleRemoteSync({ immediate: true });
     }
 
     // Cascade: BECH32 דקודר מינימלי לצורך פענוח nsec
@@ -1173,6 +1188,256 @@
             throw new Error("convertBits: invalid padding");
         }
         return Uint8Array.from(result);
+    }
+
+    // Cascade: גוזר מפתח ציבורי מתוך המפתח הפרטי בעזרת nostr-tools
+    function derivePublicKey(privateKeyHex) {
+        try {
+            if (window.NostrTools && typeof window.NostrTools.getPublicKey === "function") {
+                return window.NostrTools.getPublicKey(privateKeyHex);
+            }
+        } catch (err) {
+            console.warn("Cascade: הפקת מפתח ציבורי נכשלה", err);
+        }
+        return "";
+    }
+
+    // Cascade: מחזיר טיימסטמפ עדכון מתוך localStorage למפתח הנוכחי
+    function getLocalUpdatedTimestamp() {
+        if (!window.localStorage || !activePrivateKey) {
+            return 0;
+        }
+        const key = LAST_UPDATE_STORAGE_PREFIX + activePrivateKey;
+        const value = localStorage.getItem(key);
+        const parsed = value ? Number(value) : 0;
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    // Cascade: קובע טיימסטמפ עדכון למפתח הנוכחי
+    function setLocalUpdatedTimestamp(timestamp) {
+        if (!window.localStorage || !activePrivateKey || !Number.isFinite(timestamp)) {
+            return;
+        }
+        const key = LAST_UPDATE_STORAGE_PREFIX + activePrivateKey;
+        localStorage.setItem(key, String(timestamp));
+        localLastUpdated = timestamp;
+    }
+
+    // Cascade: יוצר Pool של Nostr אם קיים
+    function ensureNostrPool() {
+        if (nostrPool) {
+            return nostrPool;
+        }
+        if (!window.NostrTools || typeof window.NostrTools.SimplePool !== "function") {
+            if (!nostrSupportWarningShown) {
+                console.warn("Cascade: nostr-tools איננה זמינה – סנכרון ריליי אינו פעיל");
+                nostrSupportWarningShown = true;
+            }
+            return null;
+        }
+        nostrPool = new window.NostrTools.SimplePool();
+        logRelayDebug("SimplePool חדש נוצר", RELAY_URLS);
+        return nostrPool;
+    }
+
+    // Cascade: מפעיל חיבורי ריליי ופותח מנוי לאירועי הפלייליסט של המשתמש
+    function initializeRelayConnections() {
+        const pool = ensureNostrPool();
+        if (!pool || !activePublicKey) {
+            return;
+        }
+        stopRelaySync();
+        try {
+            const filters = [{
+                kinds: [PLAYLIST_EVENT_KIND],
+                authors: [activePublicKey],
+                '#d': [PLAYLIST_EVENT_D_TAG]
+            }];
+            logRelayDebug("נפתח מנוי לריליים עם פילטרים", filters);
+            pool.sub(RELAY_URLS, filters, {
+                onevent: (event) => onRelayEvent(event),
+                oneose: () => {
+                    logRelayDebug("הריליי סיים לשלוח אירועים ראשוניים");
+                    if (relayPollingInterval) {
+                        clearInterval(relayPollingInterval);
+                    }
+                    relayPollingInterval = setInterval(() => {
+                        logRelayDebug("בדיקת אירועים חדשים מהריליי (poll)");
+                        requestLatestFromRelay();
+                    }, REMOTE_PULL_INTERVAL_MS);
+                }
+            });
+            requestLatestFromRelay();
+        } catch (err) {
+            console.warn("Cascade: פתיחת החיבור לריליי נכשלה", err);
+        }
+    }
+
+    // Cascade: שולח בקשה מפורשת לאירוע האחרון מהריליים
+    function requestLatestFromRelay() {
+        const pool = ensureNostrPool();
+        if (!pool || !activePublicKey) {
+            return;
+        }
+        const filters = [{
+            kinds: [PLAYLIST_EVENT_KIND],
+            authors: [activePublicKey],
+            '#d': [PLAYLIST_EVENT_D_TAG],
+            limit: 1
+        }];
+        try {
+            logRelayDebug("שליחת בקשת LIST לאירוע האחרון", filters);
+            pool.list(RELAY_URLS, filters).then((events) => {
+                if (Array.isArray(events) && events.length) {
+                    const newest = events.sort((a, b) => (b.created_at || 0) - (a.created_at || 0))[0];
+                    logRelayDebug("אירוע פלייליסט התקבל מהריליי", newest);
+                    onRelayEvent(newest);
+                }
+            });
+        } catch (err) {
+            console.warn("Cascade: כשל בקבלת אירועים מהריליי", err);
+        }
+    }
+
+    // Cascade: מטפל באירוע ריליי שהתקבל עבור פלייליסטים
+    function onRelayEvent(event) {
+        if (!event || typeof event !== "object") {
+            return;
+        }
+        if (event.kind !== PLAYLIST_EVENT_KIND) {
+            return;
+        }
+        if (typeof event.pubkey !== "string" || event.pubkey !== activePublicKey) {
+            return;
+        }
+        const createdAt = Number(event.created_at || 0) * 1000;
+        if (!createdAt || createdAt <= lastRemoteEventTimestamp || createdAt <= localLastUpdated) {
+            return;
+        }
+        let payload = null;
+        try {
+            payload = JSON.parse(event.content || "[]");
+        } catch (err) {
+            console.warn("Cascade: אירוע ריליי אינו מכיל JSON תקין", err);
+            return;
+        }
+        if (!Array.isArray(payload)) {
+            return;
+        }
+        logRelayDebug("אירוע ריליי עודכן ומיושם", { createdAt, רשימות: payload.length });
+        isRestoringFromRemote = true;
+        playlists = sanitizePlaylists(payload);
+        lastRemoteEventTimestamp = createdAt;
+        savePlaylistsToStorage({ updatedAt: createdAt, skipRemote: true });
+        updatePlaylistName();
+        renderCassetteCarousel();
+        toggleEmptyState();
+        if (playlists.length) {
+            setTrackInfoLoading();
+            reloadPlayer();
+        }
+        isRestoringFromRemote = false;
+    }
+
+    // Cascade: מתזמן פרסום לריליי בתום פרק זמן קצר
+    function scheduleRemoteSync(options) {
+        const opts = options || {};
+        if (!activePrivateKey || !ensureNostrPool()) {
+            return;
+        }
+        if (opts.immediate) {
+            publishPlaylistsToRelay();
+            return;
+        }
+        if (relaySyncTimer) {
+            clearTimeout(relaySyncTimer);
+        }
+        relaySyncTimer = setTimeout(() => {
+            publishPlaylistsToRelay();
+        }, RELAY_SYNC_DEBOUNCE_MS);
+    }
+
+    // Cascade: מפרסם את רשימת הפלייליסטים לריליי כחלק מ-event יחיד
+    function publishPlaylistsToRelay() {
+        const pool = ensureNostrPool();
+        if (!pool || !activePrivateKey || !activePublicKey) {
+            return;
+        }
+        if (typeof window.NostrTools?.finalizeEvent !== "function") {
+            console.warn("Cascade: finalizeEvent חסר – לא ניתן לפרסם לריליי");
+            return;
+        }
+        const content = JSON.stringify(playlists);
+        if (content === lastPublishedPayload) {
+            logRelayDebug("הפלייליסטים לא השתנו – אין פרסום חדש");
+            return;
+        }
+        const createdAt = Math.floor(Date.now() / 1000);
+        const draft = {
+            kind: PLAYLIST_EVENT_KIND,
+            pubkey: activePublicKey,
+            created_at: createdAt,
+            tags: [
+                ["d", PLAYLIST_EVENT_D_TAG],
+                ["t", PLAYLIST_APP_TAG]
+            ],
+            content
+        };
+        let signed;
+        try {
+            signed = window.NostrTools.finalizeEvent(draft, activePrivateKey);
+        } catch (err) {
+            console.error("Cascade: חתימת האירוע נכשלה", err);
+            return;
+        }
+        logRelayDebug("מתפרסם אירוע פלייליסט חדש", draft);
+        pool.publish(RELAY_URLS, signed).then(() => {
+            lastPublishedPayload = content;
+            lastRemoteEventTimestamp = createdAt * 1000;
+            setLocalUpdatedTimestamp(lastRemoteEventTimestamp);
+            logRelayDebug("האירוע פורסם בהצלחה לכל הריליים", signed.id);
+        }).catch((err) => {
+            console.error("Cascade: פרסום לריליי נכשל", err);
+        });
+    }
+
+    // Cascade: עוצר סנכרון ריליי ומנקה טיימרים
+    function stopRelaySync() {
+        if (relaySyncTimer) {
+            clearTimeout(relaySyncTimer);
+            relaySyncTimer = null;
+        }
+        if (relayPollingInterval) {
+            clearInterval(relayPollingInterval);
+            relayPollingInterval = null;
+        }
+        if (nostrPool) {
+            try {
+                nostrPool.close(RELAY_URLS);
+                logRelayDebug("החיבור לריליי נסגר");
+            } catch (err) {
+                console.warn("Cascade: סגירת החיבור לריליי נכשלה", err);
+            }
+            nostrPool = null;
+        }
+        lastPublishedPayload = "";
+        lastRemoteEventTimestamp = 0;
+    }
+
+    // Cascade: לוכד פוקוס בתוך מודל החשבון כאשר הוא פתוח
+    function trapFocus(event) {
+        if (!Array.isArray(accountModalFocusTrap) || !accountModalFocusTrap.length) {
+            return;
+        }
+        const first = accountModalFocusTrap[0];
+        const last = accountModalFocusTrap[accountModalFocusTrap.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
     }
 
     // חשיפת פונקציות לגלובל כדי שקריאות מה-HTML יפעלו
