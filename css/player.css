@@ -1,0 +1,812 @@
+/* Cascade: עיצוב גלובלי למעטפת יישום הקלטות הדיגיטליות */
+body.cassette-app {
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'Rubik', 'Assistant', sans-serif;
+    direction: rtl;
+    background: radial-gradient(circle at top, #1a2a6c 0%, #141414 60%, #050505 100%);
+    color: #f5f5f5;
+    display: flex;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+}
+
+/* Cascade: מעטפת המסך המרכזי */
+.cassette-shell {
+    min-height: 100vh;
+    display: grid;
+    gap: 36px;
+    padding: 40px 32px 64px;
+}
+
+/* Cascade: כותרת כללית של האפליקציה */
+.app-header {
+    display: grid;
+    gap: 16px;
+}
+
+/* Cascade: פריסת כותרת עם כפתור חשבון */
+.app-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.app-hero h1 {
+    margin: 0;
+}
+
+/* Cascade: כפתור התחברות / הרשמה */
+.account-btn {
+    background: linear-gradient(135deg, #02c7a7, #04a6a8);
+    color: #06201d;
+    border: none;
+    border-radius: 16px;
+    padding: 12px 22px;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.account-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 32px rgba(0, 0, 0, 0.4);
+}
+
+.account-btn:focus {
+    outline: 2px solid rgba(92, 255, 224, 0.55);
+    outline-offset: 4px;
+}
+
+/* Cascade: רצועת סטטוס למצב משתמש */
+.account-status {
+    min-height: 24px;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.95rem;
+}
+
+.account-status.status-warning {
+    color: #ffd966;
+}
+
+/* Cascade: כותרת עליונה של היישום */
+.app-header {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, rgba(0, 255, 153, 0.15), rgba(0, 153, 255, 0.1));
+    border-radius: 20px;
+    padding: 24px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.35);
+}
+
+/* Cascade: טקסטים בכותרת העליונה */
+.app-header h1 {
+    margin: 0 0 12px 0;
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    color: #5cffe0;
+    text-shadow: 0 6px 16px rgba(92, 255, 224, 0.4);
+}
+
+/* Cascade: תיאור משנה לכותרת */
+.app-header p {
+    margin: 0;
+    font-size: clamp(1rem, 2.3vw, 1.2rem);
+    color: rgba(245, 245, 245, 0.75);
+}
+
+/* Cascade: לוח הנגן המרכזי */
+.player-panel {
+    background: linear-gradient(160deg, rgba(31, 31, 44, 0.95), rgba(14, 16, 25, 0.94));
+    border-radius: 28px;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    box-shadow: 0 22px 45px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(92, 255, 224, 0.16);
+}
+
+/* Cascade: מסגרת מסך הנגן */
+.player-screen {
+    position: relative;
+    background: linear-gradient(180deg, #050505, #1c1c1c);
+    border-radius: 24px;
+    padding: 16px;
+    border: 1px solid rgba(92, 255, 224, 0.3);
+    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.45);
+}
+
+/* Cascade: חלון iframe של ה-YouTube */
+.player-frame {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #030303;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: inset 0 0 45px rgba(0, 0, 0, 0.7);
+}
+
+/* Cascade: אזור מידע על הטרק בסגנון MTV */
+.track-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 18px 20px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(92, 255, 224, 0.16), rgba(255, 0, 128, 0.18));
+    border: 1px solid rgba(255, 0, 128, 0.32);
+    box-shadow: 0 16px 36px rgba(255, 0, 128, 0.35);
+}
+
+/* Cascade: תג רטרו לטרק */
+.track-badge {
+    font-size: 0.78rem;
+    letter-spacing: 5px;
+    color: #ff3df7;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+/* Cascade: כותרת השיר הפעיל */
+.track-title {
+    font-size: clamp(1.2rem, 2.5vw, 1.6rem);
+    font-weight: 700;
+    color: #ffffff;
+    text-shadow: 0 4px 10px rgba(255, 61, 247, 0.4);
+}
+
+/* Cascade: מידע משלים על האמן/האלבום */
+.track-meta {
+    font-size: 0.95rem;
+    color: rgba(245, 245, 245, 0.75);
+}
+
+/* Cascade: הצגת שם הקלטת הפעילה */
+.deck-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+}
+
+/* Cascade: סטטוס קלטת פעילה */
+.player-status {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 1.05rem;
+    color: rgba(245, 245, 245, 0.9);
+}
+
+/* Cascade: תגית סטטוס קבועה */
+.status-label {
+    opacity: 0.7;
+}
+
+/* Cascade: שם הקלטת הפעילה */
+.status-value {
+    color: #5cffe0;
+    font-weight: 600;
+}
+
+/* Cascade: שורת הכפתורים הראשית */
+.control-row {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 16px;
+    padding: 12px;
+    border-radius: 18px;
+    background: linear-gradient(145deg, rgba(14, 17, 25, 0.6), rgba(6, 7, 9, 0.8));
+    box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.35);
+}
+
+/* Cascade: כפתורי השליטה */
+.control-btn {
+    background: linear-gradient(150deg, #101419, #1f2630);
+    border: 1px solid rgba(92, 255, 224, 0.2);
+    color: #f5f5f5;
+    font-size: 1.15rem;
+    padding: 14px;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border 0.15s ease;
+    box-shadow: 0 16px 28px rgba(0, 0, 0, 0.4);
+}
+
+/* Cascade: כפתור בחירת קלטת פעילה */
+.control-btn:focus-visible {
+    outline: 3px solid #5cffe0;
+}
+
+/* Cascade: ריחוף על כפתורי השליטה */
+.control-btn:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 18px 28px rgba(92, 255, 224, 0.28);
+    border-color: rgba(92, 255, 224, 0.45);
+}
+
+/* Cascade: מצב ערבול פעיל */
+.shuffle-btn.active {
+    background: linear-gradient(145deg, #06373f, #0a575f);
+    border-color: rgba(92, 255, 224, 0.65);
+    box-shadow: 0 0 18px rgba(92, 255, 224, 0.45);
+}
+
+/* Cascade: אפקט לחיצה קצר */
+.active-effect {
+    animation: flashEffect 0.25s ease-in-out;
+}
+
+/* Cascade: אנימציית הבהוב ללחיצה */
+@keyframes flashEffect {
+    0% { background: linear-gradient(145deg, #1f1f1f, #2d3136); }
+    50% { background: linear-gradient(145deg, #094950, #0a565f); }
+    100% { background: linear-gradient(145deg, #1f1f1f, #2d3136); }
+}
+
+/* Cascade: לוחית הספרייה של הקלטות */
+.library-panel {
+    background: linear-gradient(185deg, rgba(19, 19, 25, 0.96), rgba(12, 12, 18, 0.94));
+    border-radius: 28px;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    border: 1px solid rgba(92, 255, 224, 0.16);
+    box-shadow: 0 22px 42px rgba(0, 0, 0, 0.5);
+}
+
+/* Cascade: כותרת ארון הקלטות */
+.library-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+/* Cascade: כותרת פנימית של ארון הקלטות */
+.library-header h2 {
+    margin: 0;
+    font-size: clamp(1.4rem, 3vw, 1.8rem);
+}
+
+/* Cascade: אזור ריק כאשר אין קלטות */
+.empty-state {
+    text-align: center;
+    color: rgba(245, 245, 245, 0.65);
+    border: 1px dashed rgba(92, 255, 224, 0.3);
+    border-radius: 20px;
+    padding: 40px 20px;
+}
+
+/* Cascade: רשת הקלטות השמישות */
+.cassette-shelf {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 18px;
+    align-items: center;
+}
+
+/* Cascade: קרוסלת הקלטות לגלילה אופקית */
+.cassette-carousel {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(220px, 260px);
+    gap: 20px;
+    overflow-x: auto;
+    padding: 20px 12px;
+    scroll-snap-type: x mandatory;
+    border-radius: 18px;
+    background: linear-gradient(145deg, rgba(9, 10, 12, 0.75), rgba(26, 29, 36, 0.65));
+    box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.35);
+}
+
+/* Cascade: סרגלי גלילה מעודנים לקרוסלה */
+.cassette-carousel::-webkit-scrollbar {
+    height: 10px;
+}
+
+.cassette-carousel::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+}
+
+.cassette-carousel::-webkit-scrollbar-thumb {
+    background: rgba(92, 255, 224, 0.35);
+    border-radius: 10px;
+}
+
+/* Cascade: כרטיס קלטת */
+.cassette-card {
+    background: linear-gradient(135deg, #1c1d24, #101116);
+    border: 1px solid rgba(92, 255, 224, 0.22);
+    border-radius: 20px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: relative;
+    box-shadow: 0 20px 36px rgba(0, 0, 0, 0.45);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    scroll-snap-align: center;
+}
+
+/* Cascade: רקע רטרו של הקלטת */
+.cassette-card::before {
+    content: "";
+    position: absolute;
+    inset: 12px;
+    border-radius: 12px;
+    background:
+        radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.12), transparent 55%),
+        radial-gradient(circle at 70% 60%, rgba(92, 255, 224, 0.12), transparent 60%),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(0, 0, 0, 0.05));
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* Cascade: תוכן כרטיס הקלטת */
+.cassette-card-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Cascade: מעטפת חזותית של הקלטת כולל חלון תמונה וגלגלי סליל */
+.cassette-art {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    border-radius: 16px;
+    background: linear-gradient(145deg, rgba(0, 0, 0, 0.8), rgba(26, 32, 42, 0.85));
+    border: 1px solid rgba(92, 255, 224, 0.22);
+    box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+}
+
+/* Cascade: גלגלי סליל מדומים */
+.cassette-reel {
+    position: absolute;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 4px solid rgba(92, 255, 224, 0.35);
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.6);
+    background: radial-gradient(circle, rgba(92, 255, 224, 0.35) 0%, rgba(15, 20, 30, 0.9) 60%);
+    animation: reelSpin 8s linear infinite;
+}
+
+/* Cascade: ניקוי ממיקום הכפתורים */
+.cassette-reel.left {
+    left: 16px;
+}
+
+.cassette-reel.right {
+    right: 16px;
+    animation-direction: reverse;
+}
+
+/* Cascade: חלון רצועה עם התמונה */
+.cassette-window {
+    position: relative;
+    width: 100%;
+    height: 96px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(92, 255, 224, 0.25);
+    box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.55);
+    background: linear-gradient(180deg, rgba(12, 15, 22, 0.9), rgba(4, 5, 8, 0.95));
+}
+
+/* Cascade: תמונה מתוך הפלייליסט */
+.cassette-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: saturate(1.15) contrast(1.05);
+    transition: transform 0.35s ease;
+}
+
+/* Cascade: תמונת מציין מקום */
+.cassette-thumb.placeholder {
+    background: repeating-linear-gradient(135deg, rgba(92, 255, 224, 0.35) 0, rgba(92, 255, 224, 0.35) 12px, rgba(0, 0, 0, 0.2) 12px, rgba(0, 0, 0, 0.2) 24px);
+}
+
+/* Cascade: מצב נפילה כאשר אין תמונה */
+.cassette-thumb.thumb-fallback {
+    background: radial-gradient(circle, rgba(92, 255, 224, 0.3), rgba(0, 0, 0, 0.85));
+}
+
+/* Cascade: ריחוף מעל הקלטת כדי להגדיל את התמונה מעט */
+.cassette-card:hover .cassette-thumb {
+    transform: scale(1.05);
+}
+
+/* Cascade: אנימציית גלגלי סליל */
+@keyframes reelSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Cascade: שם הקלטת על גבי הכרטיס */
+.cassette-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #f5f5f5;
+}
+
+/* Cascade: מזהה או תיאור הקלטת */
+.cassette-meta {
+    font-size: 0.9rem;
+    color: rgba(245, 245, 245, 0.6);
+    word-break: break-word;
+}
+
+/* Cascade: כפתורי פעולה בתוך הקלטת */
+.cassette-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+/* Cascade: כפתור הפעלה מתוך כרטיס */
+.cassette-play-btn {
+    flex: 1;
+    background: linear-gradient(135deg, #04b496, #02a598);
+    border: none;
+    border-radius: 12px;
+    color: #0b1d1c;
+    font-weight: 600;
+    padding: 12px;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+/* Cascade: ריחוף על כפתור הפעלה */
+.cassette-play-btn:hover {
+    transform: translateY(-2px);
+}
+
+/* Cascade: כפתור מחיקת קלטת */
+.cassette-delete-btn {
+    width: 50px;
+    background: linear-gradient(135deg, #c42034, #86101d);
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+/* Cascade: כפתורי ניווט למדף הקלטות */
+.shelf-nav {
+    background: linear-gradient(145deg, #101318, #1c232c);
+    border: 1px solid rgba(92, 255, 224, 0.2);
+    color: #5cffe0;
+    font-size: 1.5rem;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.shelf-nav:hover {
+    transform: scale(1.08);
+    box-shadow: 0 0 18px rgba(92, 255, 224, 0.4);
+}
+
+/* Cascade: ריחוף על מחיקת קלטת */
+.cassette-delete-btn:hover {
+    transform: scale(1.05);
+}
+
+/* Cascade: הדגשת קלטת פעילה */
+.cassette-card::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 22px;
+    border: 1px solid transparent;
+    transition: border 0.2s ease;
+}
+
+.cassette-card.active {
+    border-color: rgba(92, 255, 224, 0.55);
+    box-shadow: 0 0 24px rgba(92, 255, 224, 0.38), 0 22px 40px rgba(0, 0, 0, 0.55);
+}
+
+.cassette-card.active::after {
+    border-color: rgba(92, 255, 224, 0.65);
+}
+
+/* Cascade: לחצן רפאים (Ghost Button) כללי */
+.ghost-btn {
+    background: transparent;
+    border: 1px solid rgba(92, 255, 224, 0.35);
+    color: #5cffe0;
+    border-radius: 12px;
+    padding: 10px 18px;
+    cursor: pointer;
+    transition: background 0.2s ease, border 0.2s ease;
+}
+
+/* Cascade: ריחוף על כפתור רפאים */
+.ghost-btn:hover {
+    background: rgba(92, 255, 224, 0.12);
+    border-color: rgba(92, 255, 224, 0.55);
+}
+
+/* Cascade: כפתור מושבת */
+.ghost-btn.disabled,
+.ghost-btn:disabled,
+.primary-btn:disabled,
+.account-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* Cascade: מגירת הוספת קלטת */
+.add-drawer {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 100;
+}
+
+/* Cascade: תוכן המגירה */
+.drawer-content {
+    width: min(420px, 100%);
+    background: linear-gradient(160deg, #11141d, #0a0d12);
+    border-radius: 24px;
+    padding: 32px;
+    border: 1px solid rgba(92, 255, 224, 0.24);
+    box-shadow: 0 30px 54px rgba(0, 0, 0, 0.55);
+}
+
+/* Cascade: כותרת המגירה */
+.drawer-content h3 {
+    margin: 0 0 16px 0;
+    color: #5cffe0;
+}
+
+/* Cascade: חלון חשבון לניהול המפתח */
+.account-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 5, 9, 0.75);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    z-index: 200;
+}
+
+.account-modal.is-open {
+    display: flex;
+}
+
+.account-dialog {
+    position: relative;
+    width: min(640px, 100%);
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    border-radius: 28px;
+    padding: 36px;
+    background: linear-gradient(160deg, #10131d, #07090f 70%);
+    border: 1px solid rgba(92, 255, 224, 0.3);
+    box-shadow: 0 36px 70px rgba(0, 0, 0, 0.65);
+    display: grid;
+    gap: 28px;
+}
+
+.account-close {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 1.1rem;
+    cursor: pointer;
+}
+
+.account-lead {
+    color: rgba(255, 255, 255, 0.72);
+    margin: 0;
+}
+
+.account-section {
+    background: rgba(9, 12, 18, 0.7);
+    border-radius: 20px;
+    padding: 24px;
+    border: 1px solid rgba(92, 255, 224, 0.15);
+    display: grid;
+    gap: 16px;
+}
+
+.account-section h3 {
+    margin: 0;
+    color: #5cffe0;
+}
+
+.account-label {
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.account-textarea {
+    width: 100%;
+    min-height: 96px;
+    border-radius: 14px;
+    border: 1px solid rgba(92, 255, 224, 0.25);
+    background: rgba(8, 12, 18, 0.9);
+    color: rgba(255, 255, 255, 0.92);
+    padding: 14px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.account-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.account-status-inline {
+    min-height: 20px;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.9rem;
+}
+
+.account-status-inline.status-error {
+    color: #ff8090;
+}
+
+.account-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    font-size: 0.85rem;
+}
+
+.account-divider::before,
+.account-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(92, 255, 224, 0.22));
+    margin: 0 12px;
+}
+
+.generated-key {
+    background: rgba(9, 15, 24, 0.8);
+    border-radius: 20px;
+    padding: 20px;
+    border: 1px solid rgba(92, 255, 224, 0.25);
+    display: grid;
+    gap: 12px;
+}
+
+.account-hint {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 0.9rem;
+}
+
+/* Cascade: תוויות שדות המגירה */
+.drawer-label {
+    display: block;
+    margin-bottom: 6px;
+    color: rgba(245, 245, 245, 0.85);
+    font-weight: 500;
+}
+
+/* Cascade: שדות קלט במגירה */
+.drawer-input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(92, 255, 224, 0.25);
+    background: rgba(8, 10, 14, 0.9);
+    color: #f5f5f5;
+    margin-bottom: 14px;
+    box-sizing: border-box;
+}
+
+/* Cascade: טקסט הסבר במגירה */
+.drawer-hint {
+    margin: 0 0 16px 0;
+    font-size: 0.9rem;
+    color: rgba(245, 245, 245, 0.65);
+}
+
+/* Cascade: אזור כפתורי המגירה */
+.drawer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* Cascade: כפתור ראשי במגירה */
+.primary-btn {
+    background: linear-gradient(135deg, #02d4be, #06a6a6);
+    border: none;
+    border-radius: 12px;
+    color: #041012;
+    font-weight: 600;
+    padding: 12px 20px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+/* Cascade: ריחוף על הכפתור הראשי */
+.primary-btn:hover {
+    transform: translateY(-2px);
+}
+
+/* Cascade: מצב מגירה גלוי */
+.add-drawer.open {
+    display: flex;
+}
+
+/* Cascade: התאמות למסכים קטנים */
+@media (max-width: 1024px) {
+    .cassette-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .deck-status {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .cassette-carousel {
+        grid-auto-columns: minmax(200px, 70%);
+    }
+}
+
+@media (max-width: 640px) {
+    body.cassette-app {
+        padding: 16px;
+    }
+
+    .control-row {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .control-btn {
+        font-size: 1rem;
+        padding: 12px;
+    }
+
+    .cassette-carousel {
+        grid-auto-columns: minmax(180px, 85%);
+    }
+
+    .shelf-nav {
+        width: 46px;
+        height: 46px;
+    }
+}

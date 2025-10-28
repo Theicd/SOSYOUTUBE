@@ -1,0 +1,96 @@
+@font-face {
+        font-family: 'Alef';
+        src: url('../fonts/Alef-bold.eot');
+        src: url('../fonts/Alef-bold.eot#iefix') format('embedded-opentype'),
+             url('../fonts/Alef-bold.woff') format('woff'),
+             url('../fonts/Alef-bold.ttf') format('truetype'),
+             url('../images/Alef-bold.svg#alefbold') format('svg');
+        font-weight: bold;
+        font-style: normal;
+}
+
+@font-face {
+        font-family: 'Alef';
+        src: url('../fonts/Alef-regular.eot');
+        src: url('../fonts/Alef-regular.eot#iefix') format('embedded-opentype'),
+             url('../fonts/Alef-regular.woff') format('woff'),
+             url('../fonts/Alef-regular.ttf') format('truetype'),
+             url('../images/Alef-regular.svg#alefregular') format('svg');
+        font-weight: normal;
+        font-style: normal;
+}
+
+@font-face {
+        font-family: 'Carmelit';
+        src: url('../fonts/carmelitbold.eot');
+        src: url('../fonts/carmelitbold.eot#iefix') format('embedded-opentype'),
+             url('../fonts/carmelitbold.woff') format('woff'),
+             url('../fonts/carmelitbold.ttf') format('truetype'),
+             url('../images/carmelitbold.svg#alefbold') format('svg');
+        font-weight: bold;
+        font-style: normal;
+}
+
+@font-face {
+        font-family: 'Carmelit';
+        src: url('../fonts/carmelitregular.eot');
+        src: url('../fonts/carmelitregular.eot#iefix') format('embedded-opentype'),
+             url('../fonts/carmelitregular.woff') format('woff'),
+             url('../fonts/carmelitregular.ttf') format('truetype'),
+             url('../images/carmelitregular.svg#alefregular') format('svg');
+        font-weight: normal;
+        font-style: normal;
+}
+
+@font-face {
+        font-family: 'Rubik';
+        src: url('../fonts/Rubik-Bold.ttf');
+        font-weight: bold;
+        font-style: normal;
+}
+
+@font-face {
+        font-family: 'Rubik';
+        src: url('../fonts/Rubik-Regular.ttf');
+        font-weight: normal;
+        font-style: normal;
+}
+
+@font-face {
+        font-family: 'Heebo';
+        src: url('../fonts/Heebo-Bold.ttf');
+        font-weight: bold;
+        font-style: normal;
+}
+
+@font-face {
+        font-family: 'Heebo';
+        src: url('../fonts/Heebo-Regular.ttf');
+        font-weight: normal;
+        font-style: normal;
+}
+
+@font-face {
+        font-family: 'Assistant';
+        src: url('../fonts/Assistant-Bold.ttf');
+        font-weight: bold;
+        font-style: normal;
+}
+
+@font-face {
+        font-family: 'Assistant';
+        src: url('../fonts/Assistant-SemiBold.ttf') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+}
+
+@font-face {
+        font-family: 'SecularOne';
+        src: url('../fonts/SecularOne-Regular.ttf') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+}
+
+
+
+

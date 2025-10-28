@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>קלטות דיגיטליות לרכב</title>
+	<link href="css/player.css" type="text/css" rel="stylesheet">
+</head>
+<body class="cassette-app">
+    <!-- Cascade: מעטפת יישום הקלטות הדיגיטליות -->
+    <main class="cassette-shell">
+        <header class="app-header">
+            <div class="app-hero">
+                <div>
+                    <h1>🎶 קלטות דיגיטליות לרכב</h1>
+                    <p>הכין אוספים משלך, בחר קלטות בלחיצה ונגן מוזיקה בדרך בטוחה ונוחה.</p>
+                </div>
+                <button id="accountButton" class="account-btn" type="button">🔐 התחבר / הירשם</button>
+            </div>
+            <div id="accountStatus" class="account-status" aria-live="polite"></div>
+        </header>
+        <section class="player-panel">
+            <div class="player-screen" aria-label="נגן וידאו">
+                <div id="player" class="player-frame"></div>
+            </div>
+            <div class="track-info" aria-live="polite">
+                <div class="track-badge">LIVE MIX</div>
+                <div class="track-title" id="trackTitle">אין מידע על רצועה</div>
+                <div class="track-meta" id="trackMeta">התחל לנגן קלטת כדי לראות פרטים</div>
+            </div>
+            <div class="deck-status">
+                <div class="player-status">
+                    <span class="status-label">קלטת פעילה:</span>
+                    <span id="currentPlaylistName" class="status-value">אין קלטת טעונה</span>
+                </div>
+                <div class="vu-meters" aria-hidden="true">
+                    <div class="vu-meter">
+                        <span class="vu-label">L</span>
+                        <span class="vu-needle"></span>
+                    </div>
+                    <div class="vu-meter">
+                        <span class="vu-label">R</span>
+                        <span class="vu-needle"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="control-row">
+                <button class="control-btn tape-nav" onclick="buttonClickEffect(this); previousPlaylist()" type="button" title="קלטת קודמת">⏮️</button>
+                <button class="control-btn track-nav" onclick="buttonClickEffect(this); previousTrack()" type="button" title="שיר קודם">⏮</button>
+                <button class="control-btn play-toggle" onclick="buttonClickEffect(this); togglePlay()" type="button" title="נגן / עצור">▶</button>
+                <button class="control-btn track-nav" onclick="buttonClickEffect(this); nextTrack()" type="button" title="שיר הבא">⏭</button>
+                <button class="control-btn tape-nav" onclick="buttonClickEffect(this); nextPlaylist()" type="button" title="קלטת הבאה">⏭️</button>
+                <button class="control-btn shuffle-btn" id="shuffleBtn" onclick="buttonClickEffect(this); toggleShuffle()" type="button" title="ערבוב">🔀</button>
+            </div>
+        </section>
+        <section class="library-panel">
+            <div class="library-header">
+                <h2>ארון הקלטות</h2>
+                <button id="openAddForm" class="ghost-btn" type="button">➕ קלטת חדשה</button>
+            </div>
+            <div class="cassette-shelf">
+                <button class="shelf-nav" id="shelfPrev" type="button" title="גלול שמאלה">◀</button>
+                <div id="cassetteCarousel" class="cassette-carousel" aria-live="polite" tabindex="0"></div>
+                <button class="shelf-nav" id="shelfNext" type="button" title="גלול ימינה">▶</button>
+            </div>
+            <div id="emptyState" class="empty-state">עוד אין קלטות. הוסף קלטת חדשה כדי להתחיל להאזין.</div>
+        </section>
+    </main>
+
+    <section id="addDrawer" class="add-drawer" aria-hidden="true">
+        <div class="drawer-content" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+            <h3 id="drawerTitle">קלטת חדשה</h3>
+            <p class="drawer-hint">שם הקלטת יילקח אוטומטית מיוטיוב מיד אחרי השמירה.</p>
+            <label for="playlistIdInput" class="drawer-label">קישור או מזהה פלייליסט מיוטיוב</label>
+            <input id="playlistIdInput" class="drawer-input" type="text" placeholder="הדבק כאן את הכתובת או המזהה">
+            <p class="drawer-hint">Cascade: נשמור את הקלטת בזיכרון המכשיר כדי שתוכלו להאזין אליה מיידית בנסיעה.</p>
+            <div class="drawer-actions">
+                <button id="savePlaylist" class="primary-btn" type="button">שמירה</button>
+                <button id="cancelAdd" class="ghost-btn" type="button">ביטול</button>
+            </div>
+        </div>
+    </section>
+
+    <section id="accountModal" class="account-modal" aria-hidden="true">
+        <div class="account-dialog" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
+            <button id="closeAccountModal" class="account-close" type="button" aria-label="סגור חלון">✖</button>
+            <h2 id="accountModalTitle">כניסה או רישום באמצעות מפתח אישי</h2>
+            <p class="account-lead">Cascade: שמור את המפתח במקום בטוח. המפתח מזהה אותך ושומר את ארון הקלטות שלך בין מכשירים.</p>
+
+            <div class="account-section">
+                <h3>📥 כניסה עם מפתח קיים</h3>
+                <label for="importKeyInput" class="account-label">הדבק כאן מפתח nsec או קוד Hex</label>
+                <textarea id="importKeyInput" class="account-textarea" rows="3" placeholder="הדבק כאן את המפתח שקיבלת"></textarea>
+                <div class="account-actions">
+                    <button id="importKeyButton" class="primary-btn" type="button">טען מפתח</button>
+                </div>
+                <div id="importKeyStatus" class="account-status-inline" aria-live="polite"></div>
+            </div>
+
+            <div class="account-divider"><span>או</span></div>
+
+            <div class="account-section">
+                <h3>🆕 רישום וקבלת מפתח חדש</h3>
+                <p class="account-hint">בלחיצה על “צור מפתח” ניצור מפתח חדש, נציג אותו במסך ותוכלו להעתיק או לשתף ב־WhatsApp. בלי המפתח הזה לא ניתן לשחזר את הקלטות.</p>
+                <div class="account-actions">
+                    <button id="generateKeyButton" class="primary-btn" type="button">צור מפתח חדש</button>
+                </div>
+                <div id="generatedKeyBlock" class="generated-key" hidden>
+                    <label for="generatedKeyOutput" class="account-label">המפתח האישי שלך</label>
+                    <textarea id="generatedKeyOutput" class="account-textarea" rows="3" readonly></textarea>
+                    <p class="account-hint">שמור את המפתח, הוא יזוהה גם במחשבים ודפדפנים אחרים.</p>
+                    <div class="account-actions">
+                        <button id="copyKeyButton" class="ghost-btn" type="button">העתק</button>
+                        <button id="shareKeyButton" class="ghost-btn" type="button">שתף ב־WhatsApp</button>
+                        <button id="confirmKeyButton" class="primary-btn" type="button">המשך לנגן</button>
+                    </div>
+                    <div id="generatedKeyStatus" class="account-status-inline" aria-live="polite"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="js/player.js"></script>
+</body>
+</html>
