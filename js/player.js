@@ -5,6 +5,7 @@
     const PLAYLIST_STORAGE_PREFIX = "cascade-car-player-playlists::";
     const LAST_UPDATE_STORAGE_PREFIX = "cascade-car-player-updated-at::";
     const PROFILES_STORAGE = "cascade-car-player-profiles"; // Cascade: מאגר כל הפרופילים שנשמרו במכשיר
+    const GLOBAL_PROFILE_STORAGE = "nostr_profile"; // Cascade: אחסון גלובלי תואם SOS2 עבור שם/תמונה אחרונים
     const PROFILE_NAME_STORAGE_PREFIX = "cascade-car-player-profile-name::";
     const RELAY_URLS = [
         "wss://relay.damus.io",
@@ -97,6 +98,49 @@
             console.log("Cascade Relay:", message, detail);
         } else {
             console.log("Cascade Relay:", message);
+        }
+    }
+
+    // Cascade: מסנכרן פרופיל גלובלי בפורמט "nostr_profile" כדי לשמור תאימות עם SOS2
+    function persistGlobalProfile(publicKey, metadata) {
+        if (!window.localStorage) {
+            return;
+        }
+        try {
+            if (metadata && (metadata.name || metadata.picture) && publicKey) {
+                const payload = JSON.stringify({
+                    name: sanitizeProfileName(metadata.name),
+                    picture: typeof metadata.picture === "string" ? metadata.picture : "",
+                    pubkey: publicKey
+                });
+                localStorage.setItem(GLOBAL_PROFILE_STORAGE, payload);
+            } else {
+                localStorage.removeItem(GLOBAL_PROFILE_STORAGE);
+            }
+        } catch (err) {
+            console.warn("Cascade: שמירת nostr_profile נכשלה", err);
+        }
+    }
+
+    // Cascade: קורא את הפרופיל הגלובלי אם קיים כדי להשלים נתונים חסרים
+    function loadGlobalProfile() {
+        if (!window.localStorage) {
+            return null;
+        }
+        try {
+            const raw = localStorage.getItem(GLOBAL_PROFILE_STORAGE);
+            if (!raw) {
+                return null;
+            }
+            const parsed = JSON.parse(raw);
+            return {
+                name: sanitizeProfileName(parsed?.name) || "",
+                picture: typeof parsed?.picture === "string" ? parsed.picture : "",
+                pubkey: typeof parsed?.pubkey === "string" ? parsed.pubkey : ""
+            };
+        } catch (err) {
+            console.warn("Cascade: קריאת nostr_profile נכשלה", err);
+            return null;
         }
     }
 
@@ -888,8 +932,10 @@
         let text = message;
         if (!text) {
             if (hasActiveProfile) {
-                const profileLabel = activeProfileName || buildDefaultProfileName(activePublicKey);
-                text = `מחובר כ"${profileLabel}" – הקלטות שלך מסונכרנות דרך ריליי Nostr.`;
+                const meta = loadProfileMetadata(activePublicKey);
+                const profileLabel = activeProfileName || meta.name || buildDefaultProfileName(activePublicKey);
+                const nameSuffix = meta.picture ? " (עם תמונת פרופיל)" : "";
+                text = `מחובר כ"${profileLabel}"${nameSuffix} – הקלטות שלך מסונכרנות דרך ריליי Nostr.`;
             } else if (savedProfiles.length) {
                 text = "בחר משתמש קיים או צור פרופיל חדש כדי להתחיל לנגן.";
             } else {
@@ -1378,15 +1424,18 @@
                     && profile.publicKey.length === 64;
             }).map((profile) => {
                 const storedName = loadProfileName(profile.publicKey);
+                const meta = loadProfileMetadata(profile.publicKey);
                 const normalizedName = sanitizeProfileName(profile.name);
-                const resolvedName = normalizedName || storedName || buildDefaultProfileName(profile.publicKey);
+                const global = loadGlobalProfile();
+                const resolvedName = normalizedName || storedName || meta.name || (global?.name && profile.publicKey === (global?.pubkey || "")) ? global.name : buildDefaultProfileName(profile.publicKey);
                 if (!storedName && resolvedName) {
                     persistProfileName(profile.publicKey, resolvedName);
                 }
                 return {
                     privateKey: profile.privateKey,
                     publicKey: profile.publicKey,
-                    name: resolvedName
+                    name: resolvedName,
+                    picture: meta.picture || (global?.picture && profile.publicKey === (global?.pubkey || "")) ? global.picture : ""
                 };
             });
         } catch (err) {
@@ -1410,11 +1459,13 @@
         if (existing) {
             existing.name = sanitizedName;
             existing.privateKey = profile.privateKey;
+            existing.picture = profile.picture || existing.picture || "";
         } else {
             savedProfiles.push({
                 privateKey: profile.privateKey,
                 publicKey: profile.publicKey,
-                name: sanitizedName
+                name: sanitizedName,
+                picture: profile.picture || ""
             });
         }
         persistProfiles();
@@ -1508,17 +1559,25 @@
             localStorage.setItem(ACTIVE_PUB_STORAGE, activePublicKey);
         }
         const opts = options || {};
-        const suppliedName = opts.profileName || (findProfileByPublicKey(activePublicKey)?.name) || loadProfileName(activePublicKey);
+        const storedProfile = findProfileByPublicKey(activePublicKey);
+        const meta = loadProfileMetadata(activePublicKey);
+        const suppliedName = opts.profileName || storedProfile?.name || loadProfileName(activePublicKey) || meta.name;
         setActiveProfileName(suppliedName);
         const profileRecord = {
             privateKey: normalizedLower,
             publicKey: activePublicKey,
-            name: activeProfileName
+            name: activeProfileName,
+            picture: opts.profilePicture || storedProfile?.picture || meta.picture || ""
         };
         upsertProfile(profileRecord);
+        const pictureOverride = opts.profilePicture || "";
         persistProfileMetadata(activePublicKey, {
             name: activeProfileName,
-            picture: opts.profilePicture || ""
+            picture: pictureOverride
+        });
+        persistGlobalProfile(activePublicKey, {
+            name: activeProfileName,
+            picture: pictureOverride
         });
         renderProfileGrid();
         updateAccountStatusBanner();
@@ -1556,6 +1615,7 @@
             localStorage.removeItem(ACTIVE_PUB_STORAGE);
         }
         persistProfileMetadata(publicKey, null);
+        persistGlobalProfile("", null);
         renderCassetteCarousel();
         toggleEmptyState();
         setTrackInfoDefault();
@@ -1760,6 +1820,28 @@
             }
         } catch (err) {
             console.warn("Cascade: שמירת מטא-דאטה של פרופיל נכשלה", err);
+        }
+    }
+
+    // Cascade: טוען מטא-דאטה של פרופיל (שם/תמונה) אם נשמר
+    function loadProfileMetadata(publicKey) {
+        if (!window.localStorage || !publicKey) {
+            return { name: "", picture: "" };
+        }
+        const storageKey = `cascade-car-player-profile-meta::${publicKey}`;
+        try {
+            const raw = localStorage.getItem(storageKey);
+            if (!raw) {
+                return { name: "", picture: "" };
+            }
+            const parsed = JSON.parse(raw);
+            return {
+                name: sanitizeProfileName(parsed?.name) || "",
+                picture: typeof parsed?.picture === "string" ? parsed.picture : ""
+            };
+        } catch (err) {
+            console.warn("Cascade: קריאת מטא-דאטה של פרופיל נכשלה", err);
+            return { name: "", picture: "" };
         }
     }
 
