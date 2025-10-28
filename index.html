@@ -5,6 +5,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>קלטות דיגיטליות לרכב</title>
 	<link href="css/player.css" type="text/css" rel="stylesheet">
+	<link href="css/account.css" type="text/css" rel="stylesheet">
 </head>
 <body class="cassette-app">
     <!-- Cascade: מעטפת יישום הקלטות הדיגיטליות -->
@@ -15,7 +16,10 @@
                     <h1>🎶 קלטות דיגיטליות לרכב</h1>
                     <p>הכין אוספים משלך, בחר קלטות בלחיצה ונגן מוזיקה בדרך בטוחה ונוחה.</p>
                 </div>
-                <button id="accountButton" class="account-btn" type="button">🔐 התחבר / הירשם</button>
+                <div class="account-toolbar">
+                    <button id="logoutButton" class="ghost-btn account-logout" type="button" hidden>🚪 התנתק</button>
+                    <button id="accountButton" class="account-btn" type="button">🔐 התחבר / הירשם</button>
+                </div>
             </div>
             <div id="accountStatus" class="account-status" aria-live="polite"></div>
         </header>
@@ -87,6 +91,14 @@
             <h2 id="accountModalTitle">כניסה או רישום באמצעות מפתח אישי</h2>
             <p class="account-lead">Cascade: שמור את המפתח במקום בטוח. המפתח מזהה אותך ושומר את ארון הקלטות שלך בין מכשירים.</p>
 
+            <div class="account-section account-profile-name">
+                <h3>👤 שם פרופיל לנגן</h3>
+                <p class="account-hint">Cascade: השם שיופיע במסך בחירת המשתמשים ובכל המכשירים שמחוברים עם אותו מפתח.</p>
+                <label for="profileNameInput" class="account-label">שם הפרופיל</label>
+                <input id="profileNameInput" class="account-input" type="text" placeholder="לדוגמה: נהג ראשי / משפחה" maxlength="40">
+                <div id="profileNameStatus" class="account-status-inline" aria-live="polite"></div>
+            </div>
+
             <div class="account-section">
                 <h3>📥 כניסה עם מפתח קיים</h3>
                 <label for="importKeyInput" class="account-label">הדבק כאן מפתח nsec או קוד Hex</label>
@@ -120,9 +132,20 @@
         </div>
     </section>
 
+    <section id="profileOverlay" class="profile-overlay" aria-hidden="true">
+        <div class="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profileOverlayTitle">
+            <h2 id="profileOverlayTitle">בחר משתמש לנגן</h2>
+            <p class="profile-lead">Cascade: לכל אחד בבית יש מפתח אישי – בחר את הפרופיל שלך או הוסף חדש.</p>
+            <div id="profileGrid" class="profile-grid" role="list"></div>
+            <div class="profile-actions">
+                <button id="addProfileButton" class="ghost-btn" type="button">➕ הוסף פרופיל חדש</button>
+            </div>
+        </div>
+    </section>
+
     <script src="https://www.youtube.com/iframe_api"></script>
     <!-- Cascade: טעינת ספריית nostr-tools לשכבת הסנכרון המבוזר -->
-    <script src="https://unpkg.com/nostr-tools@2.5.4/lib/nostr.bundle.js" integrity="sha384-iNCZ6ug1hW5qSBbiX5Y1jBVHWYDEK8gHzgWkIBgAghbfxtAXXMdO2l32L+noHa3N" crossorigin="anonymous"></script>
+    <script src="js/vendor/nostr.bundle.js"></script>
     <script src="js/player.js"></script>
 </body>
 </html>

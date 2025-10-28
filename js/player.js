@@ -4,6 +4,7 @@
     const ACTIVE_PUB_STORAGE = "cascade-car-player-active-pub";
     const PLAYLIST_STORAGE_PREFIX = "cascade-car-player-playlists::";
     const LAST_UPDATE_STORAGE_PREFIX = "cascade-car-player-updated-at::";
+    const PROFILES_STORAGE = "cascade-car-player-profiles"; // Cascade: מאגר כל הפרופילים שנשמרו במכשיר
     const RELAY_URLS = [
         "wss://relay.damus.io",
         "wss://relay.snort.social",
@@ -14,12 +15,23 @@
     const PLAYLIST_EVENT_KIND = 39001;
     const PLAYLIST_EVENT_D_TAG = "cascade-car-player";
     const PLAYLIST_APP_TAG = "cascade-player";
-    const RELAY_SYNC_DEBOUNCE_MS = 1500;
-    const REMOTE_PULL_INTERVAL_MS = 30000;
-    const defaultPlaylists = [];
 
-    /** @type {{name:string,id:string,thumbnail?:string,hydrated?:boolean}[]} */
-    let playlists = [];
+    // Cascade: פונקציות עזר לשמות פרופילים ותיוגם במערכת
+    function sanitizeProfileName(value) {
+        if (!value && value !== 0) {
+            return "";
+        }
+        const trimmed = String(value).trim().replace(/\s+/g, " ");
+        return trimmed.slice(0, 40);
+    }
+
+    function buildDefaultProfileName(publicKey) {
+        if (!publicKey) {
+            return "משתמש ללא שם";
+        }
+        return `פרופיל ${publicKey.slice(0, 4)}…${publicKey.slice(-4)}`;
+    }
+
     let player = null;
     let currentPlaylistIndex = 0;
     let isShuffle = false;
@@ -30,11 +42,14 @@
     let nostrPool = null;
     let relaySyncTimer = null;
     let relayPollingInterval = null;
+    let activeRelaySubscription = null; // Cascade: מחזיק את הידית למנוי הריליי הפעיל עבור ניתוק מסודר
     let isRestoringFromRemote = false;
     let lastRemoteEventTimestamp = 0;
     let lastPublishedPayload = "";
     let localLastUpdated = 0;
     let nostrSupportWarningShown = false;
+    let savedProfiles = []; // Cascade: אוסף הפרופילים השמורים (private/public key + שם)
+    let activeProfileName = ""; // Cascade: שם הפרופיל שמחובר כרגע
 
     const trackTitleElement = document.getElementById("trackTitle");
     const trackMetaElement = document.getElementById("trackMeta");
@@ -44,6 +59,7 @@
     const hydratingPlaylists = new Set();
     const htmlDecoder = document.createElement("textarea");
     const accountButton = document.getElementById("accountButton");
+    const logoutButton = document.getElementById("logoutButton");
     const accountStatusLabel = document.getElementById("accountStatus");
     const accountModal = document.getElementById("accountModal");
     const closeAccountModalBtn = document.getElementById("closeAccountModal");
@@ -57,7 +73,12 @@
     const shareKeyButton = document.getElementById("shareKeyButton");
     const confirmKeyButton = document.getElementById("confirmKeyButton");
     const generatedKeyStatus = document.getElementById("generatedKeyStatus");
+    const profileNameInput = document.getElementById("profileNameInput");
+    const profileNameStatus = document.getElementById("profileNameStatus");
     const accountModalFocusTrap = [];
+    const profileOverlay = document.getElementById("profileOverlay");
+    const profileGrid = document.getElementById("profileGrid");
+    const addProfileButton = document.getElementById("addProfileButton");
 
     function logRelayDebug(message, detail) {
         if (typeof detail !== "undefined") {
@@ -901,6 +922,9 @@
         if (accountButton) {
             accountButton.onclick = () => openAccountModal();
         }
+        if (logoutButton) {
+            logoutButton.onclick = () => handleLogout();
+        }
         if (closeAccountModalBtn) {
             closeAccountModalBtn.onclick = () => closeAccountModal();
         }
@@ -918,6 +942,29 @@
         }
         if (importKeyButton) {
             importKeyButton.onclick = () => handleImportExistingKey();
+        }
+        if (profileNameInput) {
+            profileNameInput.addEventListener("input", () => {
+                const value = sanitizeProfileName(profileNameInput.value);
+                if (!value) {
+                    setProfileNameStatus("נא להזין שם פרופיל קצר", "error");
+                } else {
+                    setProfileNameStatus("שם פרופיל יישמר עם המפתח הזה");
+                }
+            });
+        }
+        if (addProfileButton) {
+            addProfileButton.onclick = () => {
+                closeProfileOverlay();
+                openAccountModal();
+            };
+        }
+        if (profileOverlay) {
+            profileOverlay.addEventListener("click", (event) => {
+                if (event.target === profileOverlay) {
+                    closeProfileOverlay();
+                }
+            });
         }
         if (accountModal) {
             accountModal.addEventListener("click", (event) => {
@@ -1066,6 +1113,121 @@
         }
         generatedKeyStatus.textContent = message || "";
         generatedKeyStatus.classList.toggle("status-error", tone === "error");
+    }
+
+    // Cascade: מציג משוב על שדה שם הפרופיל בממשק החשבון
+    function setProfileNameStatus(message, tone) {
+        if (!profileNameStatus) {
+            return;
+        }
+        profileNameStatus.textContent = message || "";
+        profileNameStatus.classList.toggle("status-error", tone === "error");
+    }
+
+    // Cascade: מחלץ שם פרופיל ממסך החשבון ומוודא שהוא תקין
+    function extractProfileNameFromModal() {
+        if (!profileNameInput) {
+            return "";
+        }
+        const sanitized = sanitizeProfileName(profileNameInput.value);
+        if (!sanitized) {
+            setProfileNameStatus("נא להזין שם פרופיל קצר כדי שנזהה את המשתמש במסך הבחירה.", "error");
+            return "";
+        }
+        setProfileNameStatus("");
+        return sanitized;
+    }
+
+    // Cascade: מאחסן את מצב הפרופילים ב-localStorage
+    function persistProfiles() {
+        if (!window.localStorage) {
+            return;
+        }
+        try {
+            const payload = JSON.stringify(savedProfiles);
+            localStorage.setItem(PROFILES_STORAGE, payload);
+        } catch (err) {
+            console.warn("Cascade: כשל בשמירת הפרופילים המקומית", err);
+        }
+    }
+
+    // Cascade: טוען פרופילים קיימים מהדפדפן
+    function loadProfiles() {
+        if (!window.localStorage) {
+            savedProfiles = [];
+            return;
+        }
+        try {
+            const raw = localStorage.getItem(PROFILES_STORAGE);
+            if (!raw) {
+                savedProfiles = [];
+                return;
+            }
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) {
+                savedProfiles = [];
+                return;
+            }
+            savedProfiles = parsed.filter((profile) => {
+                return profile
+                    && typeof profile.privateKey === "string"
+                    && /^[0-9a-f]{64}$/.test(profile.privateKey)
+                    && typeof profile.publicKey === "string"
+                    && profile.publicKey.length === 64;
+            }).map((profile) => ({
+                privateKey: profile.privateKey,
+                publicKey: profile.publicKey,
+                name: sanitizeProfileName(profile.name) || buildDefaultProfileName(profile.publicKey)
+            }));
+        } catch (err) {
+            console.warn("Cascade: קריאת הפרופילים המקומית נכשלה", err);
+            savedProfiles = [];
+        }
+    }
+
+    // Cascade: מחזיר פרופיל קיים לפי הפאבליק קי
+    function findProfileByPublicKey(publicKey) {
+        return savedProfiles.find((profile) => profile.publicKey === publicKey) || null;
+    }
+
+    // Cascade: מעדכן או מוסיף פרופיל חדש לאוסף
+    function upsertProfile(profile) {
+        if (!profile || !profile.privateKey || !profile.publicKey) {
+            return;
+        }
+        const sanitizedName = sanitizeProfileName(profile.name) || buildDefaultProfileName(profile.publicKey);
+        const existing = findProfileByPublicKey(profile.publicKey);
+        if (existing) {
+            existing.name = sanitizedName;
+            existing.privateKey = profile.privateKey;
+        } else {
+            savedProfiles.push({
+                privateKey: profile.privateKey,
+                publicKey: profile.publicKey,
+                name: sanitizedName
+            });
+        }
+        persistProfiles();
+    }
+
+    // Cascade: מסיר פרופיל מהאוסף ומעדכן אחסון
+    function removeProfile(publicKey) {
+        if (!publicKey) {
+            return;
+        }
+        const initialLength = savedProfiles.length;
+        savedProfiles = savedProfiles.filter((profile) => profile.publicKey !== publicKey);
+        if (savedProfiles.length !== initialLength) {
+            persistProfiles();
+        }
+    }
+
+    // Cascade: מוודא שמוגדרת כותרת פרופיל פעיל
+    function setActiveProfileName(name) {
+        activeProfileName = sanitizeProfileName(name);
+        if (!activeProfileName && activePublicKey) {
+            activeProfileName = buildDefaultProfileName(activePublicKey);
+        }
     }
 
     // Cascade: מחולל מפתח Hex אקראי באורך 64 תווים
@@ -1248,13 +1410,13 @@
         }
         stopRelaySync();
         try {
-            const filters = [{
+            const filter = {
                 kinds: [PLAYLIST_EVENT_KIND],
                 authors: [activePublicKey],
                 '#d': [PLAYLIST_EVENT_D_TAG]
-            }];
-            logRelayDebug("נפתח מנוי לריליים עם פילטרים", filters);
-            pool.sub(RELAY_URLS, filters, {
+            };
+            logRelayDebug("נפתח מנוי לריליים עם פילטרים", filter);
+            activeRelaySubscription = pool.subscribe(RELAY_URLS, filter, {
                 onevent: (event) => onRelayEvent(event),
                 oneose: () => {
                     logRelayDebug("הריליי סיים לשלוח אירועים ראשוניים");
@@ -1279,15 +1441,15 @@
         if (!pool || !activePublicKey) {
             return;
         }
-        const filters = [{
+        const filter = {
             kinds: [PLAYLIST_EVENT_KIND],
             authors: [activePublicKey],
             '#d': [PLAYLIST_EVENT_D_TAG],
             limit: 1
-        }];
+        };
         try {
-            logRelayDebug("שליחת בקשת LIST לאירוע האחרון", filters);
-            pool.list(RELAY_URLS, filters).then((events) => {
+            logRelayDebug("שליחת בקשת LIST לאירוע האחרון", filter);
+            pool.querySync(RELAY_URLS, filter).then((events) => {
                 if (Array.isArray(events) && events.length) {
                     const newest = events.sort((a, b) => (b.created_at || 0) - (a.created_at || 0))[0];
                     logRelayDebug("אירוע פלייליסט התקבל מהריליי", newest);
@@ -1391,13 +1553,25 @@
             return;
         }
         logRelayDebug("מתפרסם אירוע פלייליסט חדש", draft);
-        pool.publish(RELAY_URLS, signed).then(() => {
+        const publishOperations = pool.publish(RELAY_URLS, signed);
+        Promise.allSettled(publishOperations).then((results) => {
+            const succeeded = results.filter((result) => result.status === "fulfilled");
+            const failed = results.filter((result) => result.status === "rejected");
+            failed.forEach((result) => {
+                console.warn("Cascade: ריליי דחה את האירוע", result.reason);
+            });
+            if (!succeeded.length) {
+                console.error("Cascade: אף ריליי לא קיבל את האירוע – נדרש טיפול", failed.map((item) => item.reason));
+                return;
+            }
             lastPublishedPayload = content;
             lastRemoteEventTimestamp = createdAt * 1000;
             setLocalUpdatedTimestamp(lastRemoteEventTimestamp);
-            logRelayDebug("האירוע פורסם בהצלחה לכל הריליים", signed.id);
-        }).catch((err) => {
-            console.error("Cascade: פרסום לריליי נכשל", err);
+            logRelayDebug("האירוע פורסם בהצלחה במספר ריליים", {
+                eventId: signed.id,
+                relaysAcknowledged: succeeded.length,
+                relaysRejected: failed.length
+            });
         });
     }
 
@@ -1410,6 +1584,14 @@
         if (relayPollingInterval) {
             clearInterval(relayPollingInterval);
             relayPollingInterval = null;
+        }
+        if (activeRelaySubscription && typeof activeRelaySubscription.close === "function") {
+            try {
+                activeRelaySubscription.close("Cascade: עצירת סנכרון ידני");
+            } catch (err) {
+                console.warn("Cascade: סגירת המנוי הפעיל נכשלה", err);
+            }
+            activeRelaySubscription = null;
         }
         if (nostrPool) {
             try {
