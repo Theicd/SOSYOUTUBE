@@ -261,20 +261,26 @@
         }
         const sanitizedName = sanitizeProfileName(parsed?.name) || "";
         const sanitizedPicture = typeof parsed?.picture === "string" ? parsed.picture : "";
+        const finalName = sanitizedName || activeProfileName || buildDefaultProfileName(targetPubkey);
+        const finalPicture = sanitizedPicture || findProfileByPublicKey(targetPubkey)?.picture || "";
         persistProfileMetadata(targetPubkey, {
-            name: sanitizedName,
-            picture: sanitizedPicture
+            name: finalName,
+            picture: finalPicture
         });
-        if (sanitizedName) {
-            persistProfileName(targetPubkey, sanitizedName);
+        if (finalName) {
+            persistProfileName(targetPubkey, finalName);
         }
+        persistGlobalProfile(targetPubkey, {
+            name: finalName,
+            picture: finalPicture
+        });
         lastRemoteProfileMetadataTimestamp = createdAtMs;
         lastPublishedProfileMetadata = event.content || "";
         const profileRecord = {
             privateKey: activePrivateKey,
             publicKey: targetPubkey,
-            name: sanitizedName || activeProfileName || buildDefaultProfileName(targetPubkey),
-            picture: sanitizedPicture || findProfileByPublicKey(targetPubkey)?.picture || ""
+            name: finalName,
+            picture: finalPicture
         };
         upsertProfile(profileRecord);
         setActiveProfileName(profileRecord.name);
@@ -1752,7 +1758,8 @@
         const storedProfile = findProfileByPublicKey(activePublicKey);
         const meta = loadProfileMetadata(activePublicKey);
         const suppliedName = opts.profileName || storedProfile?.name || loadProfileName(activePublicKey) || meta.name;
-        setActiveProfileName(suppliedName);
+        const hasLocalName = Boolean(suppliedName);
+        setActiveProfileName(suppliedName || buildDefaultProfileName(activePublicKey));
         const profileRecord = {
             privateKey: normalizedLower,
             publicKey: activePublicKey,
@@ -1761,14 +1768,16 @@
         };
         upsertProfile(profileRecord);
         const resolvedPicture = profileRecord.picture || "";
-        persistProfileMetadata(activePublicKey, {
-            name: activeProfileName,
-            picture: resolvedPicture
-        });
-        persistGlobalProfile(activePublicKey, {
-            name: activeProfileName,
-            picture: resolvedPicture
-        });
+        if (hasLocalName) {
+            persistProfileMetadata(activePublicKey, {
+                name: activeProfileName,
+                picture: resolvedPicture
+            });
+            persistGlobalProfile(activePublicKey, {
+                name: activeProfileName,
+                picture: resolvedPicture
+            });
+        }
         renderProfileGrid();
         updateAccountStatusBanner();
         updateAccountKeyBanner();
